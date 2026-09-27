@@ -8,6 +8,7 @@ import {
   canEditUpdate,
   canSeeBudget,
   isAdmin,
+  visibleDomainIds,
   useStore,
 } from '../store/useStore'
 import { programPercent } from '../lib/rag'
@@ -28,7 +29,8 @@ import type { Program, ScopeChange, StatusUpdate, Task } from '../types'
 
 export function ProgramDetail({ programId }: { programId: string }) {
   const program = useStore((s) => s.programs.find((p) => p.id === programId))
-  const domain = useStore((s) => s.domains.find((d) => d.id === program?.domainId))
+  const allDomains = useStore((s) => s.domains)
+  const domain = allDomains.find((d) => d.id === program?.domainId)
   const allTasks = useStore((s) => s.tasks)
   const allUpdates = useStore((s) => s.updates)
   const allStatusChanges = useStore((s) => s.statusChanges)
@@ -72,6 +74,16 @@ export function ProgramDetail({ programId }: { programId: string }) {
   )
 
   if (!program || !domain) return <p className="text-slate-500">Program not found.</p>
+
+  // Strict isolation: block a program outside the user's org subtree.
+  const visIds = visibleDomainIds(user, allDomains.map((d) => d.id))
+  if (visIds && !visIds.includes(program.domainId)) {
+    return (
+      <div className="rounded-xl border border-slate-200 bg-white p-8 text-center text-sm text-slate-500">
+        You don't have access to this project.
+      </div>
+    )
+  }
 
   const canEdit = canEditDomain(user, program.domainId)
   const canEditU = canEditUpdate(user, program.domainId)

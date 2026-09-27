@@ -10,14 +10,17 @@ import { AlertsView } from './components/AlertsView'
 import { WeeklyUpdatesView } from './components/WeeklyUpdatesView'
 import { CapacityPlanning } from './components/CapacityPlanning'
 import { BudgetView } from './components/BudgetView'
+import { MonthlyReconciliation } from './components/MonthlyReconciliation'
 import { ReportsView } from './components/ReportsView'
+import { RolesView } from './components/RolesView'
 import { HelpView } from './components/HelpView'
 import { Estimator } from './components/Estimator'
 
 // Where a persona lands by default: a domain manager on their own team's page,
 // everyone else (Admin / Leadership) on the portfolio Overview.
 function defaultLanding(user: { role: string; domainId?: string }): View {
-  return user.role === 'manager' && user.domainId
+  // A contributor lands on their own domain; everyone else on the Overview.
+  return user.role === 'contributor' && user.domainId
     ? { k: 'domain', domainId: user.domainId }
     : { k: 'home' }
 }
@@ -30,6 +33,7 @@ export default function App() {
   const domains = useStore((s) => s.domains)
   const programs = useStore((s) => s.programs)
   const init = useStore((s) => s.init)
+  const setUser = useStore((s) => s.setUser)
   const loading = useStore((s) => s.loading)
 
   useEffect(() => {
@@ -134,10 +138,22 @@ export default function App() {
                 <Crumb active>Budget</Crumb>
               </>
             )}
+            {view.k === 'reconcile' && (
+              <>
+                <ChevronRight size={14} className="text-slate-300" />
+                <Crumb active>Monthly Budget</Crumb>
+              </>
+            )}
             {view.k === 'reports' && (
               <>
                 <ChevronRight size={14} className="text-slate-300" />
                 <Crumb active>Reports &amp; KPIs</Crumb>
+              </>
+            )}
+            {view.k === 'roles' && (
+              <>
+                <ChevronRight size={14} className="text-slate-300" />
+                <Crumb active>Roles &amp; Access</Crumb>
               </>
             )}
             {view.k === 'help' && (
@@ -196,9 +212,11 @@ export default function App() {
           {view.k === 'budget' && (
             <BudgetView onOpenProgram={(programId) => setView({ k: 'program', programId })} />
           )}
+          {view.k === 'reconcile' && <MonthlyReconciliation />}
           {view.k === 'reports' && (
             <ReportsView onOpenProgram={(programId) => setView({ k: 'program', programId })} />
           )}
+          {view.k === 'roles' && <RolesView onPreview={(u) => setUser(u)} />}
           {view.k === 'help' && <HelpView onNavigate={navigate} />}
         </div>
       </main>

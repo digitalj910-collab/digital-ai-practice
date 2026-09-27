@@ -17,7 +17,8 @@ import {
   Target,
   Users,
 } from 'lucide-react'
-import { isAdmin, managerScope, useStore } from '../store/useStore'
+import { canSeeBudget, isAdmin, visibleDomainIds, useStore } from '../store/useStore'
+import { groupByDirector } from '../lib/org'
 import { programPercent, rollupRag, RAG_COLORS } from '../lib/rag'
 import { buildAlerts, deliveryRisk, portfolioMetrics } from '../lib/metrics'
 import { byPriority, isBacklog } from '../lib/stage'
@@ -52,10 +53,10 @@ export function DomainGrid({
   const updates = useStore((s) => s.updates)
   const user = useStore((s) => s.currentUser)
   const tshirtSizes = useStore((s) => s.tshirtSizes)
-  // Managers only ever see their own domain.
-  const scope = managerScope(user)
-  const domains = scope ? allDomains.filter((d) => d.id === scope) : allDomains
-  const programs = scope ? allPrograms.filter((p) => p.domainId === scope) : allPrograms
+  // Everyone only ever sees the domains in their org subtree.
+  const visIds = visibleDomainIds(user, allDomains.map((d) => d.id))
+  const domains = visIds ? allDomains.filter((d) => visIds.includes(d.id)) : allDomains
+  const programs = visIds ? allPrograms.filter((p) => visIds.includes(p.domainId)) : allPrograms
   const [showDomainForm, setShowDomainForm] = useState(false)
   const [showEstimator, setShowEstimator] = useState(false)
   const [tile, setTile] = useState<null | 'watch' | 'deprioritized' | 'effectiveness'>(null)
@@ -85,13 +86,15 @@ export function DomainGrid({
         subtitle="Select a domain to drill into its programs and timelines."
         actions={
           <>
-            <button
-              onClick={() => setShowEstimator(true)}
-              className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50"
-            >
-              <Calculator size={16} />
-              Estimator
-            </button>
+            {canSeeBudget(user) && (
+              <button
+                onClick={() => setShowEstimator(true)}
+                className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50"
+              >
+                <Calculator size={16} />
+                Estimator
+              </button>
+            )}
             <button
               onClick={() => exportPrograms(programs, domains, tasks)}
               className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50"
@@ -137,9 +140,13 @@ export function DomainGrid({
       {/* Quick nav — the reporting/planning screens, one click from the top. */}
       <div className="flex flex-wrap gap-2">
         <QuickLink icon={<Bell size={15} />} onClick={onOpenAlerts}>Alerts</QuickLink>
-        <QuickLink icon={<Gauge size={15} />} onClick={() => onNavigate({ k: 'capacity' })}>Capacity Planning</QuickLink>
-        <QuickLink icon={<BarChart3 size={15} />} onClick={() => onNavigate({ k: 'reports' })}>Reports &amp; KPIs</QuickLink>
         <QuickLink icon={<LayoutGrid size={15} />} onClick={onOpenPortfolio}>Portfolio timeline</QuickLink>
+        {canSeeBudget(user) && (
+          <QuickLink icon={<Gauge size={15} />} onClick={() => onNavigate({ k: 'capacity' })}>Capacity Planning</QuickLink>
+        )}
+        {isAdmin(user) && (
+          <QuickLink icon={<BarChart3 size={15} />} onClick={() => onNavigate({ k: 'reports' })}>Reports &amp; KPIs</QuickLink>
+        )}
       </div>
 
       {/* Summary tiles */}
@@ -171,9 +178,9 @@ export function DomainGrid({
 
       <Snapshot title="Portfolio snapshot" lines={portfolioSummary(programs, tasks, updates, domains)} />
 
-      {/* Domain cards */}
-      <div className="grid gap-4 sm:grid-cols-2">
-        {domains.map((d) => {
+      {/* Domain cards — grouped by director so the VP → director → team hierarchy is visible */}
+      {(() => {
+        const renderCard = (d: Domain) => {
           const domainPrograms = programs.filter((p) => p.domainId === d.id)
           const rag = rollupRag(domainPrograms)
           const avg =
@@ -241,8 +248,34 @@ export function DomainGrid({
               </div>
             </button>
           )
-        })}
-      </div>
+        }
+
+        // Contributors see only their own team — no director grouping needed.
+        if (user.role === 'contributor') {
+          return <div className="grid gap-4 sm:grid-cols-2">{domains.map(renderCard)}</div>
+        }
+        // Everyone else: group the team cards under their director.
+        return (
+          <div className="space-y-6">
+            {groupByDirector(domains).map((g) => (
+              <section key={g.director?.id ?? 'other'} className="space-y-3">
+                {g.director && (
+                  <h2 className="flex flex-wrap items-baseline gap-2">
+                    <span className="rounded-md bg-slate-100 px-2 py-0.5 text-xs font-bold uppercase tracking-wide text-slate-600">
+                      {g.director.unit}
+                    </span>
+                    <span className="text-sm font-semibold text-slate-800">{g.director.name}</span>
+                    <span className="text-xs font-normal text-slate-400">
+                      {g.director.level === 'senior_director' ? 'Senior Director' : 'Director'}
+                    </span>
+                  </h2>
+                )}
+                <div className="grid gap-4 sm:grid-cols-2">{g.domains.map(renderCard)}</div>
+              </section>
+            ))}
+          </div>
+        )
+      })()}
 
       {/* Portfolio backlog — staged programs (no dates yet) across all teams. */}
       {backlogPrograms.length > 0 && (

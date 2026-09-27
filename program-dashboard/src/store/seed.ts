@@ -1,5 +1,7 @@
 import type {
   Domain,
+  Funding,
+  MonthlyActual,
   Program,
   StatusChange,
   StatusUpdate,
@@ -422,7 +424,63 @@ const SLIPS: Record<string, { days: number; scope?: { note: string; addedPoints?
   p_hr1: { days: 10 },
 }
 
+// Sample month-by-month ACTUALS for a spread of programs, so the Monthly Budget
+// reconciliation opens with real planned-vs-actual data. Each line carries its own
+// CapEx/OpEx tag (labour is usually CapEx; PMs/scrum masters run OpEx) so the
+// split roll-ups are meaningful. Actuals run from each program's start month
+// through the current month (Sep 2026) — future months stay blank, as in real life.
+type ActualSeed = { role: string; base: number; funding: Funding }[]
+const CURRENT_MONTH_IDX = 8 // September 2026 (0-based) = "actuals to date"
+
+// Base monthly cost per role. Kept deliberately a bit below each program's planned
+// burn so the reconciliation reads "under budget" (green) across the demo.
+const ACTUALS: Record<string, ActualSeed> = {
+  p_cust1: [
+    { role: 'Project Manager', base: 6_000, funding: 'opex' },
+    { role: 'Developer', base: 24_000, funding: 'capex' },
+    { role: 'Business Analyst', base: 4_000, funding: 'capex' },
+  ],
+  p_sf1: [
+    { role: 'Project Manager', base: 6_000, funding: 'opex' },
+    { role: 'Developer', base: 30_000, funding: 'capex' },
+    { role: 'Scrum Master', base: 3_000, funding: 'opex' },
+  ],
+  p_ets1: [
+    { role: 'Project Manager', base: 5_500, funding: 'opex' },
+    { role: 'Developer', base: 20_000, funding: 'capex' },
+    { role: 'Technical Analyst', base: 5_000, funding: 'capex' },
+  ],
+  p_hr1: [
+    { role: 'Project Manager', base: 5_000, funding: 'opex' },
+    { role: 'Developer', base: 15_000, funding: 'capex' },
+  ],
+  p_ndc1: [
+    { role: 'Project Manager', base: 5_500, funding: 'capex' },
+    { role: 'Developer', base: 18_000, funding: 'capex' },
+    { role: 'Business Analyst', base: 4_000, funding: 'opex' },
+  ],
+}
+
+/** Build monthly actuals for 2026 from a program's start month through "today",
+ *  with a small deterministic month-to-month wobble so the numbers look real. */
+function genActuals(program: Program, lines: ActualSeed): MonthlyActual[] {
+  if (!program.startDate) return []
+  const startM = parseISO(program.startDate).getMonth()
+  const endM = program.endDate ? parseISO(program.endDate).getMonth() : 11
+  const last = Math.min(CURRENT_MONTH_IDX, endM)
+  const out: MonthlyActual[] = []
+  for (let m = startM; m <= last; m++) {
+    const monthLines = lines.map((l, i) => {
+      const wobble = 1 + (((m * 7 + i * 3) % 5) - 2) * 0.06 // ≈ −12%…+12%
+      return { role: l.role, cost: Math.round((l.base * wobble) / 100) * 100, funding: l.funding }
+    })
+    out.push({ month: `2026-${String(m + 1).padStart(2, '0')}`, lines: monthLines })
+  }
+  return out
+}
+
 export const seedPrograms: Program[] = RAW_PROGRAMS.map((p) => {
+  const monthlyActuals = ACTUALS[p.id] ? genActuals(p, ACTUALS[p.id]) : undefined
   // Only scheduled programs (with dates) get a baseline; backlog items don't.
   const baseline =
     p.startDate && p.endDate
@@ -435,7 +493,7 @@ export const seedPrograms: Program[] = RAW_PROGRAMS.map((p) => {
         }
       : undefined
   const slip = SLIPS[p.id]
-  if (!slip) return { ...p, baseline }
+  if (!slip) return { ...p, baseline, monthlyActuals }
   const newEnd = toIso(addDays(parseISO(p.endDate), slip.days))
   const scopeChanges = slip.scope
     ? [
@@ -450,7 +508,7 @@ export const seedPrograms: Program[] = RAW_PROGRAMS.map((p) => {
       ]
     : undefined
   // Baseline keeps the original end; the live endDate moves out to show the slip.
-  return { ...p, baseline, endDate: newEnd, scopeChanges }
+  return { ...p, baseline, endDate: newEnd, scopeChanges, monthlyActuals }
 })
 
 // Several example projects carry a task breakdown so the per-project Gantt is
@@ -784,7 +842,7 @@ export const seedComments: UpdateComment[] = [
     id: 'cm_1',
     updateId: 'u_2',
     author: 'Leadership',
-    role: 'viewer',
+    role: 'director',
     text: 'What is our fallback if the vendor patch slips again? Can we close the resourcing gap this sprint?',
     date: '2026-08-31T14:10:00.000Z',
   },
@@ -792,7 +850,7 @@ export const seedComments: UpdateComment[] = [
     id: 'cm_2',
     updateId: 'u_2',
     author: 'Taylor Reed',
-    role: 'manager',
+    role: 'contributor',
     text: 'Fallback is a manual alerting bridge for legacy segments. I have requested one more engineer to close the gap.',
     date: '2026-09-01T09:05:00.000Z',
   },
@@ -800,7 +858,7 @@ export const seedComments: UpdateComment[] = [
     id: 'cm_3',
     updateId: 'u_1',
     author: 'Leadership',
-    role: 'viewer',
+    role: 'director',
     text: 'Great momentum on the Lightning migration — please flag any final-org edge cases early so we can protect the go-live.',
     date: '2026-08-31T16:20:00.000Z',
   },
@@ -808,7 +866,7 @@ export const seedComments: UpdateComment[] = [
     id: 'cm_4',
     updateId: 'u_4',
     author: 'Leadership',
-    role: 'viewer',
+    role: 'director',
     text: 'This gateway blocker has been open two weeks. Do you need me to escalate with procurement?',
     date: '2026-09-01T11:00:00.000Z',
   },
@@ -816,7 +874,7 @@ export const seedComments: UpdateComment[] = [
     id: 'cm_5',
     updateId: 'u_4',
     author: 'Alex Morgan',
-    role: 'manager',
+    role: 'contributor',
     text: 'Yes please — an escalation would help. Sandbox credentials are the only thing holding up integration.',
     date: '2026-09-01T13:30:00.000Z',
   },
@@ -824,7 +882,7 @@ export const seedComments: UpdateComment[] = [
     id: 'cm_6',
     updateId: 'u_8',
     author: 'Leadership',
-    role: 'viewer',
+    role: 'director',
     text: 'If the Dec target is at risk, let us look at temporary onboarding support. Send me the throughput numbers.',
     date: '2026-08-27T10:15:00.000Z',
   },
@@ -832,7 +890,7 @@ export const seedComments: UpdateComment[] = [
     id: 'cm_7',
     updateId: 'u_8',
     author: 'Chris Bennett',
-    role: 'manager',
+    role: 'contributor',
     text: 'Will send the throughput model. Two extra onboarding specialists would get us to target.',
     date: '2026-08-27T15:40:00.000Z',
   },
@@ -840,7 +898,7 @@ export const seedComments: UpdateComment[] = [
     id: 'cm_8',
     updateId: 'u_3',
     author: 'Leadership',
-    role: 'viewer',
+    role: 'director',
     text: 'Good progress. Keep an eye on the source-mapping scope creep — flag early if it needs a re-baseline.',
     date: '2026-08-31T17:05:00.000Z',
   },
@@ -853,7 +911,7 @@ export const seedUpdateEdits: UpdateEdit[] = [
     id: 'ue_1',
     updateId: 'u_2',
     editor: 'Leadership',
-    editorRole: 'viewer',
+    editorRole: 'director',
     date: '2026-09-01T09:20:00.000Z',
     changes: [
       {
@@ -867,7 +925,7 @@ export const seedUpdateEdits: UpdateEdit[] = [
     id: 'ue_2',
     updateId: 'u_8',
     editor: 'Leadership',
-    editorRole: 'viewer',
+    editorRole: 'director',
     date: '2026-08-27T16:00:00.000Z',
     changes: [
       {

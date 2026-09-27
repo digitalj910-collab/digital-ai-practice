@@ -1,8 +1,10 @@
 import { useState } from 'react'
-import { estimate, PER_ENGINEER_VELOCITY, type TShirtSize } from '../lib/forecast'
+import { estimate, type TShirtSize } from '../lib/forecast'
 import { canAdminister, canEditDomain, canSeeBudget, useStore } from '../store/useStore'
-import { blendedDayRate, fmtMoney } from '../lib/budget'
+import { fmtMoney, teamVelocity } from '../lib/budget'
 import { fmtDate, toIso } from '../lib/dates'
+import type { RolePlanEntry } from '../types'
+import { RoleMixEditor } from './RoleMixEditor'
 import { Button, Field, Modal, inputClass } from './ui'
 
 /** Early, high-level delivery estimate for the "business wants a date" conversation.
@@ -23,24 +25,34 @@ export function Estimator({
   const setTshirtSizes = useStore((s) => s.setTshirtSizes)
   const setDomainTshirtSizes = useStore((s) => s.setDomainTshirtSizes)
   const user = useStore((s) => s.currentUser)
+  const defaultCard = useStore((s) => s.rateCard)
+  const cardsByDomain = useStore((s) => s.rateCardsByDomain)
 
   // This domain's own scale/rates, falling back to the team default.
   const tshirtSizes = domainId ? (sizesByDomain[domainId] ?? defaultSizes) : defaultSizes
+  const rateCard = domainId ? (cardsByDomain[domainId] ?? defaultCard) : defaultCard
   const canCustomize = domainId ? canEditDomain(user, domainId) : canAdminister(user)
 
   const [points, setPoints] = useState(100)
-  const [engineers, setEngineers] = useState(3)
+  // Seed the team with a few of the fastest delivery role on the card.
+  const [roleMix, setRoleMix] = useState<RolePlanEntry[]>(() => {
+    const lead = [...rateCard].sort((a, b) => b.pointsPerSprint - a.pointsPerSprint)[0]
+    return lead ? [{ role: lead.role, count: 3 }] : []
+  })
   const [bufferPct, setBufferPct] = useState(25)
   const [startDate, setStartDate] = useState(() => toIso(new Date()))
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState<TShirtSize[]>(tshirtSizes)
 
-  const defaultCard = useStore((s) => s.rateCard)
-  const cardsByDomain = useStore((s) => s.rateCardsByDomain)
-  const rateCard = domainId ? (cardsByDomain[domainId] ?? defaultCard) : defaultCard
-  const est = estimate(points, engineers, bufferPct / 100, startDate || undefined)
+  const velocity = teamVelocity(roleMix, rateCard)
+  const est = estimate(points, velocity, bufferPct / 100, startDate || undefined)
   const activeSize = tshirtSizes.find((t) => t.points === points)
-  const estCost = est.bufferedPoints * blendedDayRate(rateCard)
+  // Role-aware cost: each role's own day rate × headcount × working days over the run.
+  const costPerDay = roleMix.reduce(
+    (a, r) => a + r.count * (rateCard.find((c) => c.role === r.role)?.dayRate ?? 0),
+    0,
+  )
+  const estCost = Math.round(costPerDay * est.bufferedWeeks * 5)
 
   return (
     <Modal
@@ -51,8 +63,9 @@ export function Estimator({
     >
       <div className="space-y-4">
         <p className="text-sm text-slate-500">
-          A rough, early estimate for planning — each engineer delivers ~{PER_ENGINEER_VELOCITY} SP
-          per 3-week sprint (1 SP = 1 day).
+          A rough, early estimate for planning. Build the team below — each role delivers points per
+          the rate card (developers move the date; PMs, BAs and scrum masters cost money and count as
+          people but deliver 0 points). 1 SP = 1 day.
         </p>
 
         {/* T-shirt sizing — for high-level planning conversations. Picking a size
@@ -154,15 +167,6 @@ export function Estimator({
               onChange={(e) => setPoints(Math.max(0, Number(e.target.value)))}
             />
           </Field>
-          <Field label="Engineers on the team">
-            <input
-              type="number"
-              min={1}
-              className={inputClass}
-              value={engineers}
-              onChange={(e) => setEngineers(Math.max(1, Number(e.target.value)))}
-            />
-          </Field>
           <Field label="Contingency buffer %" hint="For early scope uncertainty.">
             <input
               type="number"
@@ -183,9 +187,18 @@ export function Estimator({
           </Field>
         </div>
 
+        <Field label="Team composition" hint="Add any mix of roles — only delivery roles speed up the date.">
+          <RoleMixEditor
+            value={roleMix}
+            onChange={setRoleMix}
+            rateCard={rateCard}
+            showCost={canSeeBudget(user)}
+          />
+        </Field>
+
         <div className="rounded-2xl border border-brand-100 bg-brand-50/50 p-4">
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-            <Res label="Team velocity" value={`${est.velocity}`} sub="SP / sprint" />
+            <Res label="Team velocity" value={`${velocity}`} sub="SP / sprint" />
             <Res label="Likely" value={`${est.sprints} sprint${est.sprints === 1 ? '' : 's'}`} sub={`≈ ${est.weeks} wks · ${est.months} mo`} />
             <Res
               label={`Buffered (+${bufferPct}%)`}
@@ -193,18 +206,25 @@ export function Estimator({
               sub={`≈ ${est.bufferedWeeks} wks · ${est.bufferedMonths} mo`}
             />
             {est.targetDate && <Res label="Est. completion" value={fmtDate(est.targetDate)} sub="based on your selection" />}
-            {canSeeBudget(user) && <Res label="Est. cost" value={fmtMoney(estCost)} sub="work × blended rate" />}
+            {canSeeBudget(user) && <Res label="Est. cost" value={fmtMoney(estCost)} sub="team × buffered duration" />}
           </div>
-          <p className="mt-3 text-sm text-slate-600">
-            {activeSize && (
-              <span className="mr-1 rounded bg-brand-100 px-1.5 py-0.5 text-xs font-semibold text-brand-700">
-                {activeSize.size} = {activeSize.points} SP
-              </span>
-            )}
-            Tell business: <strong>likely {est.sprints} sprints</strong>, and{' '}
-            <strong>commit to ~{est.bufferedSprints} sprints</strong> (≈ {est.bufferedMonths} months)
-            given it's early.
-          </p>
+          {velocity === 0 ? (
+            <p className="mt-3 text-sm font-medium text-amber-700">
+              This team has no delivery capacity — add a role that carries points/sprint (e.g. a
+              Developer) to get a date.
+            </p>
+          ) : (
+            <p className="mt-3 text-sm text-slate-600">
+              {activeSize && (
+                <span className="mr-1 rounded bg-brand-100 px-1.5 py-0.5 text-xs font-semibold text-brand-700">
+                  {activeSize.size} = {activeSize.points} SP
+                </span>
+              )}
+              Tell business: <strong>likely {est.sprints} sprints</strong>, and{' '}
+              <strong>commit to ~{est.bufferedSprints} sprints</strong> (≈ {est.bufferedMonths} months)
+              given it's early.
+            </p>
+          )}
         </div>
 
         <div className="flex justify-end">

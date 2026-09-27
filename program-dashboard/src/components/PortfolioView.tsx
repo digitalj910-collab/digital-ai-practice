@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { Download, GanttChartSquare } from 'lucide-react'
-import { managerScope, useStore } from '../store/useStore'
+import { visibleDomainIds, useStore } from '../store/useStore'
 import { exportPrograms } from '../lib/excel'
 import { ProgramTimeline, type TimelineRow } from './ProgramTimeline'
 import { hasMarker, MARKER_FILTERS, type MarkerKey } from '../lib/markers'
@@ -18,13 +18,13 @@ export function PortfolioView({
   const updates = useStore((s) => s.updates)
   const statusChanges = useStore((s) => s.statusChanges)
   const user = useStore((s) => s.currentUser)
-  // Managers see only their own domain across the portfolio.
-  const scope = managerScope(user)
-  const domains = scope ? allDomains.filter((d) => d.id === scope) : allDomains
-  // Scoped to the manager's domain, and only scheduled work (backlog isn't on any timeline).
-  const scopedPrograms = (scope ? programs.filter((p) => p.domainId === scope) : programs).filter(
-    isScheduled,
-  )
+  // Everyone sees only their own org subtree across the portfolio.
+  const visIds = visibleDomainIds(user, allDomains.map((d) => d.id))
+  const domains = visIds ? allDomains.filter((d) => visIds.includes(d.id)) : allDomains
+  // Scoped to the subtree, and only scheduled work (backlog isn't on any timeline).
+  const scopedPrograms = (
+    visIds ? programs.filter((p) => visIds.includes(p.domainId)) : programs
+  ).filter(isScheduled)
 
   // Filter the whole portfolio to a single project type at a time.
   const [typeFilter, setTypeFilter] = useState<ProjectType | 'all'>('all')

@@ -3,6 +3,7 @@ import {
   BarChart3,
   Bell,
   Calculator,
+  CalendarRange,
   ChevronDown,
   ClipboardList,
   FolderKanban,
@@ -109,6 +110,11 @@ export function HelpView({ onNavigate }: { onNavigate: (v: View) => void }) {
             Funds vs. forecast vs. spend, rolled up from programs to teams to the portfolio. Each team
             is costed with its own rate card. Set the default rate card here. Admin & Leadership only.
           </ScreenCard>
+          <ScreenCard icon={<CalendarRange size={18} />} color="#0d9488" title="Monthly Budget" onClick={() => onNavigate({ k: 'reconcile' })}>
+            Planned vs. actual spend, month by month across the calendar year. Enter actuals per
+            resource role, tagged CapEx / OpEx, and see the variance roll up by team & portfolio.
+            Admin & Leadership only.
+          </ScreenCard>
           <ScreenCard icon={<BarChart3 size={18} />} color="#c8102e" title="Reports & KPIs" onClick={() => onNavigate({ k: 'reports' })}>
             One place for portfolio KPIs — schedule health (on-time vs. baseline, slipped projects),
             budget health, scope & change control, and resource coverage. Click any row to drill in.
@@ -186,23 +192,33 @@ export function HelpView({ onNavigate }: { onNavigate: (v: View) => void }) {
         <div className="mt-3 space-y-2.5">
           <Feature icon={<Calculator size={15} />} label="Delivery Estimator">
             "When will it be done, and roughly what will it cost?" Pick a T-shirt size (or points),
-            team size and buffer → likely sprints, a completion date and an estimated cost. Use it in
-            the "business wants a date" conversation.
+            build the <strong>team as a mix of roles</strong> and set a buffer → likely sprints, a
+            completion date and cost. Only delivery roles (developers, tech analysts) move the date;
+            PMs, BAs and scrum masters cost money and count as people but deliver 0 points.
           </Feature>
           <Feature icon={<Gauge size={15} />} label="Capacity Calculator">
-            The flip side — "how many people to hit this date?" Enter the work and dates → people
-            needed; enter your current team → your real completion date and the gap.
+            The flip side — "how many <em>delivery</em> people to hit this date?" Enter the work and
+            dates → people needed (sized on your fastest delivery role); enter your current team →
+            your real completion date and the gap.
           </Feature>
           <Feature icon={<Receipt size={15} />} label="Rate card (per team)">
-            Each team sets its own cost-per-day by role, and can differ from other teams. These rates
-            drive every labour-cost estimate — Estimator, kickoff and Budget. A team starts from the
-            organisation default until it customises.
+            Each team sets its own <strong>day rate and points-per-sprint by role</strong>, and can
+            differ from other teams. Rates drive every labour-cost estimate (Estimator, kickoff,
+            Budget); points-per-sprint drive the delivery date. A team starts from the organisation
+            default until it customises.
           </Feature>
           <Feature icon={<Wallet size={15} />} label="Budget model">
             Labour = staffing × role day-rate × working days; add other costs = <em>estimated</em>. A
             granted <em>fund</em> is the approved budget; <em>spend</em> comes from % complete (or an
             override); <em>forecast</em> projects the finish; <em>variance</em> is fund − forecast.
             It rolls up program → team → portfolio, each team on its own rates.
+          </Feature>
+          <Feature icon={<CalendarRange size={15} />} label="Monthly reconciliation">
+            The <strong>Monthly Budget</strong> screen tracks <strong>planned vs. actual</strong> spend
+            month by month across the calendar year. Planned is each program's estimate spread over the
+            months it runs; <strong>actuals are entered per resource role</strong> (PM, developer, BA…),
+            each tagged <strong>CapEx or OpEx</strong>. Variance and the CapEx/OpEx split roll up by team
+            and portfolio. "Prefill from rate card" seeds a month from day-rates to save typing.
           </Feature>
           <Feature icon={<Tag size={15} />} label="T-shirt sizing">
             The size → story-point scale behind the estimators. Editable per team, so each can tune it
@@ -256,26 +272,35 @@ export function HelpView({ onNavigate }: { onNavigate: (v: View) => void }) {
 
       {/* ---- Roles ---- */}
       <Section icon={<Users size={17} />} title="Roles & access rules" defaultOpen>
+        <p className="mb-2 text-sm text-slate-600">
+          It's an org hierarchy with <strong>strict isolation</strong> — you only ever see your own
+          part of the tree (domain → director → VP → admin). Peers never see each other's data.
+        </p>
         <div className="space-y-2 text-sm">
-          <RoleRow role="Admin" color="#c8102e">
-            Full access to everything — every team and project, all tools, add/edit teams and
-            projects, set the default rate card and T-shirt scale.
+          <RoleRow role="Contributor" color="#64748b">
+            Data entry in <strong>their own team only</strong> — programs, tasks, weekly check-ins,
+            baselines, scope changes. Does not see money or other teams.
           </RoleRow>
-          <RoleRow role="Leadership" color="#7c3aed">
-            Full access too — the same rights as Admin across every team, plus commenting on updates.
-            This is the portfolio-owner view.
+          <RoleRow role="Director / Sr. Director" color="#c8102e">
+            Oversees their <strong>assigned team(s)</strong> in full detail — programs, timelines,
+            budget, alerts — but only their own; another director's teams are invisible, even under
+            the same VP.
           </RoleRow>
-          <RoleRow role="Manager" color="#0d9488">
-            Full rights <strong>within their own team</strong> — add / edit / delete projects, post
-            updates and weekly check-ins, baseline plans, log scope changes, and set their team's
-            estimator scale and capacity settings. Read-only on other teams. <strong>Does not see money</strong>.
+          <RoleRow role="VP" color="#7c3aed">
+            Oversees their directors' teams — a <strong>rollup by default</strong>, drill into any one
+            of them for full detail (budget included). Never another VP's tree.
+          </RoleRow>
+          <RoleRow role="Admin" color="#0d9488">
+            Full access to everything — all teams, all settings, plus Reports & KPIs, Capacity
+            Planning and the Estimator (which are admin-only).
           </RoleRow>
         </div>
         <div className="mt-3 space-y-1.5 text-sm text-slate-600">
-          <p>• <strong>Money is Admin + Leadership only</strong> — the Budget page, project costs, rate cards and "Est. cost" are hidden from Managers.</p>
-          <p>• <strong>Everyone</strong> can comment on updates.</p>
-          <p>• Every <strong>status change</strong> requires a reason (kept as an audit trail).</p>
-          <p>• Each team's <strong>rate card</strong> is independent (Admin/Leadership set it) — no two teams have to share rates.</p>
+          <p>• <strong>Money</strong> (Budget, Monthly Budget, costs, rate cards) is seen by Admin and the Director/VP tiers — never Contributors — and always scoped to their own teams.</p>
+          <p>• <strong>Capacity Planning</strong> and the <strong>Estimator / Rate-card</strong> tools are available to Admin and the Director/VP tiers (scoped to their teams); <strong>Reports & KPIs</strong> is admin-only.</p>
+          <p>• Admins get a <strong>Roles & Access</strong> screen to preview the app as any role — handy for demos.</p>
+          <p>• Isolation is enforced in the data, not just the menu — you can't reach another team's data even by a direct link.</p>
+          <p>• The <strong>Sandbox</strong> role in the switcher unlocks everything, for internal testing only.</p>
         </div>
         <p className="mt-2 text-xs text-slate-400">Switch roles with the "Viewing as" dropdown at the bottom-left.</p>
       </Section>
@@ -344,9 +369,9 @@ export function HelpView({ onNavigate }: { onNavigate: (v: View) => void }) {
             type <strong>story points</strong> directly — one or the other.
           </Faq>
           <Faq q="Where do I land when I switch roles?">
-            A <strong>Manager</strong> lands on their own team's page (with New program, Weekly check-in
-            and Import to hand). <strong>Admin & Leadership</strong> land on the portfolio Overview, with
-            Alerts, Capacity Planning and Reports & KPIs one click away at the top.
+            A <strong>Contributor</strong> lands on their own team's page (with New program, Weekly
+            check-in and Import to hand). <strong>Directors, VPs and Admin</strong> land on the Overview,
+            scoped to the teams they oversee.
           </Faq>
           <Faq q="Can I see every project that was ever blocked?">
             Yes — on a team view or the Portfolio Timeline, use the <strong>"Ever flagged"</strong>

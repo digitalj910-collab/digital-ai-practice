@@ -14,7 +14,7 @@ import {
   Receipt,
   Users,
 } from 'lucide-react'
-import { canEditDomain, canSeeBudget, isAdmin, useStore } from '../store/useStore'
+import { canEditDomain, canSeeBudget, isAdmin, visibleDomainIds, useStore } from '../store/useStore'
 import { byPriority, isBacklog, isScheduled } from '../lib/stage'
 import { programPercent } from '../lib/rag'
 import { exportPrograms } from '../lib/excel'
@@ -48,7 +48,8 @@ export function ProgramList({
   domainId: string
   onOpenProgram: (programId: string) => void
 }) {
-  const domain = useStore((s) => s.domains.find((d) => d.id === domainId))
+  const allDomains = useStore((s) => s.domains)
+  const domain = allDomains.find((d) => d.id === domainId)
   const allPrograms = useStore((s) => s.programs)
   const tasks = useStore((s) => s.tasks)
   const updates = useStore((s) => s.updates)
@@ -108,6 +109,16 @@ export function ProgramList({
 
   if (!domain) return <p className="text-slate-500">Domain not found.</p>
 
+  // Strict isolation: block viewing a domain outside the user's org subtree.
+  const visIds = visibleDomainIds(user, allDomains.map((d) => d.id))
+  if (visIds && !visIds.includes(domainId)) {
+    return (
+      <div className="rounded-xl border border-slate-200 bg-white p-8 text-center text-sm text-slate-500">
+        You don't have access to this team.
+      </div>
+    )
+  }
+
   const canEdit = canEditDomain(user, domainId)
   const TYPE_CHIPS: (ProjectType | 'all')[] = ['all', 'enhancement', 'initiative', 'technical']
 
@@ -162,10 +173,8 @@ export function ProgramList({
         </div>
       </div>
 
-      {/* Planning tools — the same estimator, capacity and rate-card used for
-          budgeting, one click away so project details can be leveraged while
-          planning in this domain. Shown to anyone who can edit the domain. */}
-      {canEdit && (
+      {/* Planning tools — estimator, capacity and rate card. Admin + leadership. */}
+      {canSeeBudget(user) && (
         <div className="flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-slate-50/60 px-3 py-2">
           <span className="text-xs font-semibold uppercase tracking-wide text-slate-400">
             Planning tools

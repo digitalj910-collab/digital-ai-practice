@@ -130,19 +130,21 @@ export function capacityEstimate(
   weeks: number,
   bufferPct = DEFAULT_BUFFER_PCT,
   haveNow?: number,
+  perPersonVelocity: number = PER_ENGINEER_VELOCITY,
 ): CapacityEstimate {
   const sprints = Math.max(1, Math.round(weeks / SPRINT_WEEKS))
   const bufferedPoints = Math.round(points * (1 + bufferPct))
-  // velocity needed per sprint = bufferedPoints / sprints; each person delivers
-  // PER_ENGINEER_VELOCITY, so people = ceil(neededVelocity / perPerson).
-  const peopleNeeded = Math.max(1, Math.ceil(bufferedPoints / (sprints * PER_ENGINEER_VELOCITY)))
+  const perPerson = Math.max(1, perPersonVelocity)
+  // People needed = enough delivery people (each delivering perPerson/sprint) to
+  // burn down the buffered work within the available sprints.
+  const peopleNeeded = Math.max(1, Math.ceil(bufferedPoints / (sprints * perPerson)))
   const gap = haveNow != null ? peopleNeeded - haveNow : undefined
   return { points, bufferedPoints, weeks, sprints, peopleNeeded, haveNow, gap }
 }
 
 export interface Estimate {
   points: number
-  engineers: number
+  /** Total team story points per sprint (from the role mix). */
   velocity: number
   sprints: number
   weeks: number
@@ -155,23 +157,26 @@ export interface Estimate {
   targetDate?: string
 }
 
-/** Early, high-level estimate for business planning (with a contingency buffer). */
+/**
+ * Early, high-level estimate for business planning (with a contingency buffer).
+ * `velocity` is the team's total story points per sprint — computed from the role
+ * mix (Σ headcount × each role's points/sprint), so only delivery roles speed it up.
+ */
 export function estimate(
   points: number,
-  engineers: number,
+  velocity: number,
   bufferPct = DEFAULT_BUFFER_PCT,
   startDate?: string,
 ): Estimate {
-  const velocity = Math.max(1, engineers * PER_ENGINEER_VELOCITY)
-  const sprints = Math.max(1, Math.ceil(points / velocity))
+  const v = Math.max(1, velocity)
+  const sprints = Math.max(1, Math.ceil(points / v))
   const bufferedPoints = Math.round(points * (1 + bufferPct))
-  const bufferedSprints = Math.max(1, Math.ceil(bufferedPoints / velocity))
+  const bufferedSprints = Math.max(1, Math.ceil(bufferedPoints / v))
   const weeks = sprints * SPRINT_WEEKS
   const bufferedWeeks = bufferedSprints * SPRINT_WEEKS
   return {
     points,
-    engineers,
-    velocity,
+    velocity: v,
     sprints,
     weeks,
     months: Math.round((weeks / WEEKS_PER_MONTH) * 10) / 10,

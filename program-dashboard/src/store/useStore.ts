@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { differenceInCalendarDays, parseISO } from 'date-fns'
+import { visibleDomainIds as orgVisibleDomainIds } from '../lib/org'
 import type {
   Domain,
   Program,
@@ -12,7 +12,7 @@ import type {
   UpdateEdit,
   UpdateFieldChange,
 } from '../types'
-import { DEFAULT_RATE_CARD } from '../lib/budget'
+import { DEFAULT_RATE_CARD, normalizeRateCard } from '../lib/budget'
 import { uid } from '../lib/id'
 import { supabaseEnabled } from '../lib/supabase'
 import {
@@ -53,8 +53,13 @@ const TRACKED_UPDATE_FIELDS: (keyof StatusUpdate)[] = [
  *  comes from the logged-in user. Managers can only edit their own domain. */
 export interface CurrentUser {
   role: Role
-  domainId?: string
   name: string
+  /** For a contributor — the one domain they own. */
+  domainId?: string
+  /** For a director / senior_director — which director they are. */
+  directorId?: string
+  /** For a VP — which VP they are. */
+  vpId?: string
 }
 
 interface State {
@@ -165,10 +170,14 @@ export const useStore = create<State>()((set, get) => ({
       const savedSizes = await settingsGet('tshirt_sizes')
       if (Array.isArray(savedSizes) && savedSizes.length) set({ tshirtSizes: savedSizes })
       const savedCard = await settingsGet('rate_card')
-      if (Array.isArray(savedCard) && savedCard.length) set({ rateCard: savedCard })
+      if (Array.isArray(savedCard) && savedCard.length) set({ rateCard: normalizeRateCard(savedCard) })
       const savedDomainCards = await settingsGet('rate_cards_by_domain')
-      if (savedDomainCards && typeof savedDomainCards === 'object' && !Array.isArray(savedDomainCards))
-        set({ rateCardsByDomain: savedDomainCards })
+      if (savedDomainCards && typeof savedDomainCards === 'object' && !Array.isArray(savedDomainCards)) {
+        const normalized: Record<string, RateCardEntry[]> = {}
+        for (const [id, c] of Object.entries(savedDomainCards))
+          if (Array.isArray(c)) normalized[id] = normalizeRateCard(c)
+        set({ rateCardsByDomain: normalized })
+      }
       const savedDomainSizes = await settingsGet('tshirt_by_domain')
       if (savedDomainSizes && typeof savedDomainSizes === 'object' && !Array.isArray(savedDomainSizes))
         set({ tshirtSizesByDomain: savedDomainSizes })
@@ -417,83 +426,78 @@ export const useStore = create<State>()((set, get) => ({
 }))
 
 // ---- Permission helpers ----
-// Role model: Admin and Leadership (viewer) have FULL access to everything, in
-// every domain. Managers have full rights (add/edit projects, updates, delete)
-// within their own domain only.
+// Org-hierarchy roles (see src/lib/org.ts):
+//  - contributor: data entry, scoped to their own domain. No money.
+//  - director / senior_director: oversee their assigned domains (view + budget +
+//    comment). No data entry, no admin settings.
+//  - vp: oversee their directors' domains (view + budget + comment).
+//  - admin / sandbox: full access to everything.
 
+/** Data-entry capability anywhere (create/edit programs, tasks, updates). */
 export function canEdit(user: CurrentUser): boolean {
-  return user.role === 'admin' || user.role === 'viewer' || user.role === 'manager'
+  return user.role === 'admin' || user.role === 'sandbox' || user.role === 'contributor'
 }
 
+/** Can this user do data entry in a specific domain? Contributors: own domain only. */
 export function canEditDomain(user: CurrentUser, domainId: string): boolean {
-  if (user.role === 'admin' || user.role === 'viewer') return true
-  if (user.role === 'manager') return user.domainId === domainId
+  if (user.role === 'admin' || user.role === 'sandbox') return true
+  if (user.role === 'contributor') return user.domainId === domainId
   return false
 }
 
 /**
  * Admin-level actions that aren't scoped to a single domain — add/edit domains,
- * the vendor rate card, the T-shirt point scale. Admin + Leadership only.
+ * the vendor rate card, the T-shirt scale, the planning tools. Admin / sandbox only.
  */
 export function canAdminister(user: CurrentUser): boolean {
-  return user.role === 'admin' || user.role === 'viewer'
+  return user.role === 'admin' || user.role === 'sandbox'
 }
 
 /**
  * Who may see money — budget amounts, project costs, rate cards, estimated cost.
- * Admin + Leadership only for now; Managers run everything else without dollars.
+ * Admin/sandbox and the leadership tiers (director / senior_director / VP), scoped
+ * to their own domains. Contributors never see money.
  */
 export function canSeeBudget(user: CurrentUser): boolean {
-  return user.role === 'admin' || user.role === 'viewer'
+  return (
+    user.role === 'admin' ||
+    user.role === 'sandbox' ||
+    user.role === 'director' ||
+    user.role === 'senior_director' ||
+    user.role === 'vp'
+  )
 }
 
-/**
- * The single domain a manager is scoped to see — they only ever see their own
- * team's data. Returns null for Admin / Leadership, who see the whole portfolio.
- */
-export function managerScope(user: CurrentUser): string | null {
-  return user.role === 'manager' ? user.domainId ?? null : null
+/** Re-export the org-tree domain visibility so components import it from one place. */
+export function visibleDomainIds(user: CurrentUser, allDomainIds: string[]): string[] | null {
+  return orgVisibleDomainIds(user, allDomainIds)
 }
 
-/**
- * Who may EDIT a weekly update. Every change is recorded in the update's edit
- * history, so the manager's original wording is never silently lost.
- */
+/** Who may EDIT a weekly update — the same data-entry rule as editing the domain. */
 export function canEditUpdate(user: CurrentUser, domainId: string): boolean {
   return canEditDomain(user, domainId)
 }
 
-/** Who may DELETE a weekly update: same full-access rule as editing. */
+/** Who may DELETE a weekly update. */
 export function canDeleteUpdate(user: CurrentUser, domainId: string): boolean {
   return canEditDomain(user, domainId)
 }
 
-/** Anyone with a persona can comment — enables the leadership ↔ manager thread. */
+/** Anyone with a persona can comment — enables the leadership ↔ contributor thread. */
 export function canComment(_user: CurrentUser): boolean {
   return true
 }
 
-/** Kept for compatibility; now true for Admin + Leadership (both full access). */
+/** Admin-level UI gate (add/edit domains, rate card, T-shirt scale). */
 export function isAdmin(user: CurrentUser): boolean {
   return canAdminister(user)
 }
 
-export const GRACE_DAYS = 14
-
-export function withinGrace(startDate: string, today = new Date()): boolean {
-  return differenceInCalendarDays(today, parseISO(startDate)) <= GRACE_DAYS
+/** Deletion: admin/sandbox anywhere; contributors within their own domain. */
+export function canDeleteProgram(user: CurrentUser, program: Program): boolean {
+  return canEditDomain(user, program.domainId)
 }
 
-/**
- * Deletion rules: Admin and Leadership may always delete. Managers have full
- * delete rights within their own domain.
- */
-export function canDeleteProgram(user: CurrentUser, program: Program, _today = new Date()): boolean {
-  if (user.role === 'admin' || user.role === 'viewer') return true
-  if (user.role === 'manager' && user.domainId === program.domainId) return true
-  return false
-}
-
-export function canDeleteTask(user: CurrentUser, program: Program, today = new Date()): boolean {
-  return canDeleteProgram(user, program, today)
+export function canDeleteTask(user: CurrentUser, program: Program): boolean {
+  return canDeleteProgram(user, program)
 }

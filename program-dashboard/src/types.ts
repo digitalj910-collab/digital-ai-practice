@@ -3,7 +3,8 @@
 // normalized into these shapes, so the UI never needs to know where a row
 // originated — it just renders programs and tasks.
 
-export type Role = 'admin' | 'manager' | 'viewer'
+// Org-hierarchy roles (see src/lib/org.ts). 'sandbox' is a test-only persona.
+export type Role = 'contributor' | 'director' | 'senior_director' | 'vp' | 'admin' | 'sandbox'
 
 export type RagStatus = 'green' | 'amber' | 'red'
 
@@ -54,11 +55,15 @@ export interface Domain {
   budget?: number
 }
 
-/** A cost role on the vendor/rate card (e.g. Developer, Architect, PM). */
+/** A cost role on the vendor/rate card (e.g. Developer, PM, BA, Scrum Master). */
 export interface RateCardEntry {
   role: string
   /** Cost per person-day for this role (currency units). */
   dayRate: number
+  /** Story points this role delivers per 3-week sprint. Delivery roles (developer,
+   *  tech analyst) contribute; support roles (PM, BA, scrum master, RTE) are 0 —
+   *  they still cost money and count as team members but don't burn down points. */
+  pointsPerSprint: number
 }
 
 /** Staffing for a program: how many of each role. */
@@ -71,6 +76,26 @@ export interface RolePlanEntry {
 export interface CostLine {
   label: string
   amount: number
+}
+
+/**
+ * One resource-role's ACTUAL cost for a program in a given month, tagged
+ * CapEx/OpEx. Entered manually for budget reconciliation (planned vs actual).
+ */
+export interface MonthlyActualLine {
+  /** Rate-card role (Developer, PM, BA, …) or a custom label. */
+  role: string
+  /** Actual cost incurred that month (currency units). */
+  cost: number
+  /** Capital vs operating — can differ per role/month within one program. */
+  funding: Funding
+}
+
+/** A program's actual spend for one calendar month, broken down by resource role. */
+export interface MonthlyActual {
+  /** Calendar month, 'YYYY-MM'. */
+  month: string
+  lines: MonthlyActualLine[]
 }
 
 /**
@@ -262,6 +287,8 @@ export interface Program {
   approvedBudget?: number
   /** Manual actual spend-to-date override; when unset, spend is derived from % complete. */
   spentOverride?: number
+  /** Month-by-month actual spend, entered manually for budget reconciliation. */
+  monthlyActuals?: MonthlyActual[]
 }
 
 /**

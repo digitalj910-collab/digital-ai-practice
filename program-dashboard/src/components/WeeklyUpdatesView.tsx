@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { startOfWeek, endOfWeek, subDays } from 'date-fns'
 import { CalendarCheck, CalendarDays, CheckCircle2, Clock, ClipboardCheck, ClipboardList, Download, Filter, FolderKanban, LayoutGrid, MessageSquare } from 'lucide-react'
-import { canAdminister, canComment, canEditUpdate, canEditDomain, canDeleteUpdate, managerScope, useStore } from '../store/useStore'
+import { canAdminister, canComment, canEditUpdate, canEditDomain, canDeleteUpdate, visibleDomainIds, useStore } from '../store/useStore'
 import { fmtDate, parseISO, toIso } from '../lib/dates'
 import { exportUpdates } from '../lib/excel'
 import { Button, PageHeader, StatTile, inputClass } from './ui'
@@ -29,7 +29,7 @@ export function WeeklyUpdatesView({
   const programs = useStore((s) => s.programs)
   const domains = useStore((s) => s.domains)
   const user = useStore((s) => s.currentUser)
-  const scope = managerScope(user)
+  const visIds = visibleDomainIds(user, domains.map((d) => d.id))
   const deleteUpdate = useStore((s) => s.deleteUpdate)
   const comments = useStore((s) => s.comments)
   const updateEdits = useStore((s) => s.updateEdits)
@@ -59,11 +59,11 @@ export function WeeklyUpdatesView({
     const cutoff = isFinite(days) ? toIso(subDays(new Date(), days)) : null
     return updates.filter((u) => {
       if (cutoff && u.date < cutoff) return false
-      if (scope && domainOf(u) !== scope) return false // managers: own domain only
+      if (visIds && !visIds.includes(domainOf(u) ?? '')) return false // own subtree only
       if (domainFilter !== 'all' && domainOf(u) !== domainFilter) return false
       return true
     })
-  }, [updates, period, domainFilter, programById, scope])
+  }, [updates, period, domainFilter, programById, visIds])
 
   // Group updates by domain (for the leadership-friendly "by area" view).
   const byDomain = useMemo(() => {
@@ -178,7 +178,7 @@ export function WeeklyUpdatesView({
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
         <StatTile icon={<CalendarCheck size={20} />} label="Updates this week" value={thisWeekCount} accent="#0d9488" />
         <StatTile icon={<FolderKanban size={20} />} label="Projects updated" value={thisWeekPrograms} accent="#2563eb" />
-        <StatTile icon={<MessageSquare size={20} />} label="Total updates" value={scope ? updates.filter((u) => domainOf(u) === scope).length : updates.length} accent="#7c3aed" />
+        <StatTile icon={<MessageSquare size={20} />} label="Total updates" value={visIds ? updates.filter((u) => visIds.includes(domainOf(u) ?? '')).length : updates.length} accent="#7c3aed" />
       </div>
 
       {/* Team check-in status (admin / leadership) — who's done this week, who's pending. */}
@@ -255,7 +255,7 @@ export function WeeklyUpdatesView({
             >
               <option value="all">All domains</option>
               {domains
-                .filter((d) => !scope || d.id === scope)
+                .filter((d) => !visIds || visIds.includes(d.id))
                 .map((d) => (
                   <option key={d.id} value={d.id}>
                     {d.name}

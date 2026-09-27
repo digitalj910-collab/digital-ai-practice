@@ -1,11 +1,12 @@
 import { useState } from 'react'
 import { Rocket, Trash2 } from 'lucide-react'
-import type { Domain, Funding, Priority, Program, ProgramStatus, ProjectType, RagStatus, Task } from '../types'
+import type { Domain, Funding, Priority, Program, ProgramStatus, ProjectType, RagStatus, RolePlanEntry, Task } from '../types'
 import { PROGRAM_STATUS_LABELS, PRIORITY_LABELS, PROJECT_TYPE_LABELS, FUNDING_LABELS, MARKED_STATUSES } from '../types'
 import { canDeleteProgram, canSeeBudget, useStore } from '../store/useStore'
 import { fmtDate, toIso } from '../lib/dates'
-import { CURRENCY, fmtMoney, laborCost, otherTotal } from '../lib/budget'
+import { CURRENCY, effectiveRolePlan, fmtMoney, laborCost, otherTotal, teamHeadcount, teamVelocity } from '../lib/budget'
 import { estimate } from '../lib/forecast'
+import { RoleMixEditor } from './RoleMixEditor'
 import { Button, Field, Modal, inputClass } from './ui'
 
 const STATUS_OPTIONS = Object.keys(PROGRAM_STATUS_LABELS) as ProgramStatus[]
@@ -69,6 +70,7 @@ export function ProgramForm({
     priority: existing?.priority ?? ('medium' as Priority),
     plannedResources: existing?.plannedResources ?? 0,
     currentResources: existing?.currentResources ?? 0,
+    rolePlan: (existing?.rolePlan ?? []) as RolePlanEntry[],
     deprioritized: existing?.deprioritized ?? false,
     deprioritizedReason: existing?.deprioritizedReason ?? '',
     approvedBudget: existing?.approvedBudget != null ? String(existing.approvedBudget) : '',
@@ -82,16 +84,24 @@ export function ProgramForm({
   // budget/estimation engine as the Budget & Estimator screens.
   const otherNum = form.otherCostsTotal === '' ? 0 : Math.max(0, Number(form.otherCostsTotal) || 0)
   const datesValid = !!form.startDate && !!form.endDate && form.endDate >= form.startDate
+  // The team drives both cost and delivery date. Use the explicit role mix when set;
+  // otherwise synthesize a plausible mix from the planned headcount (back-compat).
+  const hasRolePlan = form.rolePlan.length > 0
+  const headcount = hasRolePlan ? teamHeadcount(form.rolePlan) : form.plannedResources
+  const effPlan = hasRolePlan
+    ? form.rolePlan
+    : effectiveRolePlan({ plannedResources: form.plannedResources } as Program)
+  const velocity = teamVelocity(effPlan, rateCard)
   const draftProgram = {
     startDate: form.startDate,
     endDate: form.endDate,
     plannedResources: form.plannedResources,
-    rolePlan: existing?.rolePlan,
+    rolePlan: hasRolePlan ? form.rolePlan : undefined,
   } as Program
   const estBudget = datesValid ? laborCost(draftProgram, rateCard) + otherNum : 0
   const estCompletion =
-    form.estimatedPoints > 0 && form.plannedResources > 0 && form.startDate
-      ? estimate(form.estimatedPoints, form.plannedResources, 0.25, form.startDate).targetDate
+    form.estimatedPoints > 0 && velocity > 0 && form.startDate
+      ? estimate(form.estimatedPoints, velocity, 0.25, form.startDate).targetDate
       : undefined
   const estLate = !!(estCompletion && form.endDate && estCompletion > form.endDate)
 
@@ -112,9 +122,13 @@ export function ProgramForm({
         ? (existing.statusDate ?? toIso(new Date()))
         : toIso(new Date())
       : undefined
-    const { approvedBudget: abRaw, otherCostsTotal: ocRaw, ...rest } = form
+    const { approvedBudget: abRaw, otherCostsTotal: ocRaw, rolePlan: rp, ...rest } = form
+    const cleanPlan = rp.filter((r) => r.role.trim() && r.count > 0)
     const payload = {
       ...rest,
+      // The role mix is the source of truth for headcount when it's set.
+      rolePlan: cleanPlan.length ? cleanPlan : undefined,
+      plannedResources: cleanPlan.length ? teamHeadcount(cleanPlan) : form.plannedResources,
       statusDate,
       deprioritizedDate: form.deprioritized
         ? (existing?.deprioritizedDate ?? toIso(new Date()))
@@ -275,12 +289,16 @@ export function ProgramForm({
               ))}
             </select>
           </Field>
-          <Field label="Planned resources" hint="Headcount / FTEs planned.">
+          <Field
+            label="Planned resources"
+            hint={hasRolePlan ? 'Set by the team composition below.' : 'Headcount / FTEs planned — or build the team below.'}
+          >
             <input
               type="number"
               min={0}
               className={inputClass}
-              value={form.plannedResources}
+              value={hasRolePlan ? headcount : form.plannedResources}
+              disabled={hasRolePlan}
               onChange={(e) => set('plannedResources', Math.max(0, Number(e.target.value)))}
             />
           </Field>
@@ -335,6 +353,18 @@ export function ProgramForm({
           </Field>
         </div>
 
+        <Field
+          label="Team composition"
+          hint="Add any mix of roles (PM, BA, developers…). Delivery roles drive the date; all roles count toward cost & headcount."
+        >
+          <RoleMixEditor
+            value={form.rolePlan}
+            onChange={(v) => set('rolePlan', v)}
+            rateCard={rateCard}
+            showCost={showMoney}
+          />
+        </Field>
+
         {(!form.startDate || !form.endDate) && (
           <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-500">
             No start/end date yet — this will be saved to the <strong>Backlog</strong> and won't appear
@@ -372,9 +402,11 @@ export function ProgramForm({
             <div className="rounded-lg border border-slate-200 bg-white py-2">
               <div className="text-[11px] text-slate-500">Team</div>
               <div className="text-lg font-bold text-slate-700">
-                {form.plannedResources} <span className="text-xs font-normal text-slate-400">ppl</span>
+                {headcount} <span className="text-xs font-normal text-slate-400">ppl</span>
               </div>
-              <div className="text-[10px] text-slate-400">planned</div>
+              <div className="text-[10px] text-slate-400">
+                {velocity > 0 ? `${velocity} SP/sprint` : 'planned'}
+              </div>
             </div>
           </div>
         </div>
@@ -437,10 +469,6 @@ export function ProgramForm({
                 <Trash2 size={15} />
                 Delete
               </Button>
-            ) : existing && user.role === 'manager' ? (
-              <span className="text-xs text-slate-400">
-                Grace period passed — set status to Cancelled / Postponed / Descoped instead.
-              </span>
             ) : null}
           </div>
           <div className="flex gap-2">

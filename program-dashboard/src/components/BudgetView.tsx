@@ -101,11 +101,17 @@ export function BudgetView({ onOpenProgram }: { onOpenProgram: (programId: strin
             <h3 className="text-sm font-semibold text-slate-800">Default vendor / role rate card ({CURRENCY} per person-day)</h3>
             <span className="text-xs text-slate-500">Team default — each domain can set its own on its page</span>
           </div>
+          <div className="mb-1 flex items-center gap-2 px-1 text-[11px] font-medium uppercase tracking-wide text-slate-400">
+            <span className="flex-1">Role</span>
+            <span className="w-28 text-right">Day rate</span>
+            <span className="w-20 text-right">Pts/sprint</span>
+            <span className="w-6" />
+          </div>
           <div className="space-y-2">
             {draft.map((r, i) => (
               <div key={i} className="flex items-center gap-2">
                 <input
-                  className="flex-1 rounded-md border border-slate-200 px-2 py-1 text-sm"
+                  className="min-w-0 flex-1 rounded-md border border-slate-200 px-2 py-1 text-sm"
                   value={r.role}
                   onChange={(e) => setDraft((d) => d.map((x, j) => (j === i ? { ...x, role: e.target.value } : x)))}
                 />
@@ -113,11 +119,18 @@ export function BudgetView({ onOpenProgram }: { onOpenProgram: (programId: strin
                 <input
                   type="number"
                   min={0}
-                  className="w-28 rounded-md border border-slate-200 px-2 py-1 text-right text-sm"
+                  className="w-24 rounded-md border border-slate-200 px-2 py-1 text-right text-sm"
                   value={r.dayRate}
                   onChange={(e) => setDraft((d) => d.map((x, j) => (j === i ? { ...x, dayRate: Math.max(0, Number(e.target.value) || 0) } : x)))}
                 />
-                <span className="text-xs text-slate-400">/day</span>
+                <input
+                  type="number"
+                  min={0}
+                  className="w-20 rounded-md border border-slate-200 px-2 py-1 text-right text-sm"
+                  value={r.pointsPerSprint}
+                  aria-label="Points per sprint"
+                  onChange={(e) => setDraft((d) => d.map((x, j) => (j === i ? { ...x, pointsPerSprint: Math.max(0, Number(e.target.value) || 0) } : x)))}
+                />
                 <button onClick={() => setDraft((d) => d.filter((_, j) => j !== i))} className="rounded p-1 text-slate-400 hover:bg-red-50 hover:text-red-600">
                   <Trash2 size={14} />
                 </button>
@@ -125,7 +138,7 @@ export function BudgetView({ onOpenProgram }: { onOpenProgram: (programId: strin
             ))}
           </div>
           <div className="mt-3 flex items-center justify-between">
-            <button onClick={() => setDraft((d) => [...d, { role: 'New role', dayRate: 500 }])} className="inline-flex items-center gap-1 text-xs font-medium text-teal-700 hover:underline">
+            <button onClick={() => setDraft((d) => [...d, { role: 'New role', dayRate: 500, pointsPerSprint: 0 }])} className="inline-flex items-center gap-1 text-xs font-medium text-teal-700 hover:underline">
               <Plus size={13} /> Add role
             </button>
             <div className="flex gap-2">

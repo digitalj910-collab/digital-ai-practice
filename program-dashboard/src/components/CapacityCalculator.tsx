@@ -1,7 +1,7 @@
 import { useState } from 'react'
-import { capacityEstimate, PER_ENGINEER_VELOCITY, SPRINT_WEEKS } from '../lib/forecast'
+import { capacityEstimate, SPRINT_WEEKS } from '../lib/forecast'
 import { canSeeBudget, useStore } from '../store/useStore'
-import { blendedDayRate, fmtMoney } from '../lib/budget'
+import { blendedDayRate, deliveryVelocityPerPerson, fmtMoney } from '../lib/budget'
 import { addDays, differenceInCalendarDays, fmtDate, parseISO, toIso } from '../lib/dates'
 import { Button, Field, Modal, inputClass } from './ui'
 
@@ -33,15 +33,21 @@ export function CapacityCalculator({
   const validRange = days > 0
   const weeks = Math.max(1, Math.round(days / 7))
   const have = haveNow === '' ? undefined : Math.max(0, Number(haveNow))
-  const est = capacityEstimate(points, weeks, bufferPct / 100, have)
-  const activeSize = tshirtSizes.find((t) => t.points === points)
   const defaultCard = useStore((s) => s.rateCard)
   const cardsByDomain = useStore((s) => s.rateCardsByDomain)
   const rateCard = domainId ? (cardsByDomain[domainId] ?? defaultCard) : defaultCard
-  const estCost = est.bufferedPoints * blendedDayRate(rateCard)
+
+  // Size on the fastest delivery role on the card, and cost on that role's rate —
+  // so "people needed" and cost mean *delivery* people, not a flat "developer".
+  const leadRole = [...rateCard].sort((a, b) => b.pointsPerSprint - a.pointsPerSprint)[0]
+  const perPerson = deliveryVelocityPerPerson(rateCard)
+  const deliveryRate = leadRole?.dayRate ?? blendedDayRate(rateCard)
+  const est = capacityEstimate(points, weeks, bufferPct / 100, have, perPerson)
+  const activeSize = tshirtSizes.find((t) => t.points === points)
+  const estCost = Math.round(est.peopleNeeded * deliveryRate * weeks * 5)
 
   // With the current roster, when would we actually finish?
-  const rosterSprints = have && have > 0 ? Math.ceil(est.bufferedPoints / (have * PER_ENGINEER_VELOCITY)) : null
+  const rosterSprints = have && have > 0 ? Math.ceil(est.bufferedPoints / (have * perPerson)) : null
   const rosterFinish =
     rosterSprints != null && validRange ? addDays(parseISO(startDate), rosterSprints * SPRINT_WEEKS * 7) : null
   // days early (positive) or late (negative) vs the deadline
@@ -57,9 +63,10 @@ export function CapacityCalculator({
       <div className="space-y-4">
         <p className="text-sm text-slate-500">
           The flip side of the Estimator: tell it how much work and the dates, and it tells you
-          <strong> how many people you need</strong> — and, if you enter your team, your
-          <strong> estimated completion date</strong> (each person delivers ~{PER_ENGINEER_VELOCITY} SP
-          per 3-week sprint).
+          <strong> how many delivery people you need</strong> — and, if you enter your team, your
+          <strong> estimated completion date</strong>. Sized on{' '}
+          <strong>{leadRole?.role ?? 'the delivery role'}</strong> at ~{perPerson} SP per 3-week sprint;
+          support roles (PM, BA, scrum master) are staffed on top and don't change the count.
         </p>
 
         {/* T-shirt sizing fills the work */}
@@ -110,8 +117,8 @@ export function CapacityCalculator({
 
         <div className="rounded-2xl border border-brand-100 bg-brand-50/50 p-4">
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
-            <Res label="People needed" value={`${est.peopleNeeded}`} sub={`to hit ${fmtDate(endDate)}`} big />
-            {canSeeBudget(user) && <Res label="Est. cost" value={fmtMoney(estCost)} sub="work × blended rate" />}
+            <Res label="Delivery people needed" value={`${est.peopleNeeded}`} sub={`to hit ${fmtDate(endDate)}`} big />
+            {canSeeBudget(user) && <Res label="Est. delivery cost" value={fmtMoney(estCost)} sub={`${leadRole?.role ?? 'delivery'} × duration`} />}
             {est.gap != null && (
               <Res
                 label={est.gap > 0 ? 'Need to add' : 'Spare capacity'}

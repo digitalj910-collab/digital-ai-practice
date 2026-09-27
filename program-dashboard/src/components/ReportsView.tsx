@@ -10,7 +10,7 @@ import {
   Users,
   Wallet,
 } from 'lucide-react'
-import { canSeeBudget, managerScope, useStore } from '../store/useStore'
+import { canAdminister, canSeeBudget, visibleDomainIds, useStore } from '../store/useStore'
 import {
   CURRENCY,
   fmtMoney,
@@ -31,10 +31,10 @@ export function ReportsView({ onOpenProgram }: { onOpenProgram: (programId: stri
   const rateCard = useStore((s) => s.rateCard)
   const cardsByDomain = useStore((s) => s.rateCardsByDomain)
   const user = useStore((s) => s.currentUser)
-  // Managers see reports scoped to their own domain.
-  const domainScope = managerScope(user)
-  const domains = domainScope ? allDomains.filter((d) => d.id === domainScope) : allDomains
-  const programs = domainScope ? allPrograms.filter((p) => p.domainId === domainScope) : allPrograms
+  // Scoped to the viewer's org subtree.
+  const visIds = visibleDomainIds(user, allDomains.map((d) => d.id))
+  const domains = visIds ? allDomains.filter((d) => visIds.includes(d.id)) : allDomains
+  const programs = visIds ? allPrograms.filter((p) => visIds.includes(p.domainId)) : allPrograms
 
   const cardFor: RateCardSource = useMemo(
     () => (id: string) => cardsByDomain[id] ?? rateCard,
@@ -98,6 +98,14 @@ export function ReportsView({ onOpenProgram }: { onOpenProgram: (programId: stri
 
   const pm = useMemo(() => portfolioMetrics(programs, tasks), [programs, tasks])
   const money = canSeeBudget(user)
+
+  if (!canAdminister(user)) {
+    return (
+      <div className="rounded-xl border border-slate-200 bg-white p-8 text-center text-sm text-slate-500">
+        Reports &amp; KPIs are available to admins only.
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-6">

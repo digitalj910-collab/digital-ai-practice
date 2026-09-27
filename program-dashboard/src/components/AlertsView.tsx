@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { AlertTriangle, Bell, Clock, TrendingDown, Users } from 'lucide-react'
-import { managerScope, useStore } from '../store/useStore'
+import { visibleDomainIds, useStore } from '../store/useStore'
 import { alertTypeLabel, buildAlerts, RISK_META, type Alert, type AlertType } from '../lib/metrics'
 import { PageHeader, StatTile, inputClass } from './ui'
 
@@ -16,10 +16,10 @@ export function AlertsView({ onOpenProgram }: { onOpenProgram: (programId: strin
   const tasks = useStore((s) => s.tasks)
   const allDomains = useStore((s) => s.domains)
   const user = useStore((s) => s.currentUser)
-  // Managers see alerts only for their own domain.
-  const scope = managerScope(user)
-  const programs = scope ? allPrograms.filter((p) => p.domainId === scope) : allPrograms
-  const domains = scope ? allDomains.filter((d) => d.id === scope) : allDomains
+  // Everyone sees alerts only for the domains in their org subtree.
+  const visIds = visibleDomainIds(user, allDomains.map((d) => d.id))
+  const programs = visIds ? allPrograms.filter((p) => visIds.includes(p.domainId)) : allPrograms
+  const domains = visIds ? allDomains.filter((d) => visIds.includes(d.id)) : allDomains
 
   const alerts = useMemo(() => buildAlerts(programs, tasks), [programs, tasks])
   const domainName = (id: string) => domains.find((d) => d.id === id)?.name ?? ''

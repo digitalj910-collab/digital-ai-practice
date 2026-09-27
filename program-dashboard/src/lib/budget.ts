@@ -7,13 +7,58 @@ import { programPercent } from './rag'
 export const CURRENCY = 'CA$'
 const WORKING_RATIO = 5 / 7
 
-/** Default vendor/role rate card (currency units per person-day). Editable by admins. */
+/** Default vendor/role rate card — day rate + points/sprint per role. Editable by admins.
+ *  Delivery roles carry velocity; support roles cost money but deliver 0 points. */
 export const DEFAULT_RATE_CARD: RateCardEntry[] = [
-  { role: 'Project Manager', dayRate: 800 },
-  { role: 'Architect', dayRate: 950 },
-  { role: 'Developer', dayRate: 600 },
-  { role: 'Engineer', dayRate: 550 },
+  { role: 'Project Manager', dayRate: 900, pointsPerSprint: 0 },
+  { role: 'Product Owner', dayRate: 850, pointsPerSprint: 0 },
+  { role: 'Scrum Master', dayRate: 800, pointsPerSprint: 0 },
+  { role: 'RTE', dayRate: 1000, pointsPerSprint: 0 },
+  { role: 'Business Analyst', dayRate: 700, pointsPerSprint: 0 },
+  { role: 'Technical Analyst', dayRate: 750, pointsPerSprint: 5 },
+  { role: 'Developer', dayRate: 700, pointsPerSprint: 13 },
 ]
+
+const DEFAULT_PTS: Record<string, number> = Object.fromEntries(
+  DEFAULT_RATE_CARD.map((r) => [r.role.toLowerCase(), r.pointsPerSprint]),
+)
+
+/**
+ * Backfill points/sprint on rate cards saved before that field existed: match the
+ * role name to the default card, else guess (developer/engineer roles deliver, the
+ * rest are 0). Applied when rate cards load so velocity math works immediately.
+ */
+export function normalizeRateCard(card: RateCardEntry[]): RateCardEntry[] {
+  return card.map((r) => ({
+    ...r,
+    pointsPerSprint:
+      r.pointsPerSprint ??
+      DEFAULT_PTS[r.role.toLowerCase()] ??
+      (/(developer|engineer)/i.test(r.role) ? 13 : 0),
+  }))
+}
+
+/** Points a role delivers per 3-week sprint (0 if not on the card). */
+export function pointsPerSprintFor(role: string, rateCard: RateCardEntry[]): number {
+  return rateCard.find((r) => r.role === role)?.pointsPerSprint ?? 0
+}
+
+/** Total story points a team delivers per sprint: Σ count × the role's velocity. */
+export function teamVelocity(rolePlan: RolePlanEntry[], rateCard: RateCardEntry[]): number {
+  return rolePlan.reduce((a, r) => a + r.count * pointsPerSprintFor(r.role, rateCard), 0)
+}
+
+/** Total headcount across a role plan. */
+export function teamHeadcount(rolePlan: RolePlanEntry[]): number {
+  return rolePlan.reduce((a, r) => a + (r.count || 0), 0)
+}
+
+/** Points/sprint one delivery person contributes — the fastest delivery role on the
+ *  card. Used by the capacity calculator to size "delivery people needed". */
+export function deliveryVelocityPerPerson(rateCard: RateCardEntry[]): number {
+  const top = Math.max(0, ...rateCard.map((r) => r.pointsPerSprint || 0))
+  return top || 13
+}
 
 /** Format a currency amount compactly (e.g. £1.2m, £850k, £4,500). */
 export function fmtMoney(n: number): string {

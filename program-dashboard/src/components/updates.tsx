@@ -31,9 +31,17 @@ import {
 } from '../types'
 
 const ROLE_BADGE: Record<Role, { label: string; cls: string }> = {
-  viewer: { label: 'Leadership', cls: 'bg-brand-100 text-brand-700' },
-  manager: { label: 'Manager', cls: 'bg-slate-100 text-slate-600' },
+  contributor: { label: 'Contributor', cls: 'bg-slate-100 text-slate-600' },
+  director: { label: 'Director', cls: 'bg-brand-100 text-brand-700' },
+  senior_director: { label: 'Sr. Director', cls: 'bg-brand-100 text-brand-700' },
+  vp: { label: 'VP', cls: 'bg-purple-100 text-purple-700' },
   admin: { label: 'Admin', cls: 'bg-teal-100 text-teal-700' },
+  sandbox: { label: 'Sandbox', cls: 'bg-amber-100 text-amber-700' },
+}
+
+// Safe lookup — older data may carry a retired role value; fall back gracefully.
+function roleBadge(r?: string): { label: string; cls: string } {
+  return (r && ROLE_BADGE[r as Role]) || { label: 'Member', cls: 'bg-slate-100 text-slate-600' }
 }
 
 const FIELD_LABEL: Record<string, string> = {
@@ -357,8 +365,8 @@ export function UpdateCard({
                   <div className="mb-1 flex items-center gap-1.5 text-slate-500">
                     <span className="font-medium text-slate-700">{e.editor}</span>
                     {e.editorRole && (
-                      <span className={`rounded px-1.5 py-0.5 text-[10px] font-semibold ${ROLE_BADGE[e.editorRole].cls}`}>
-                        {ROLE_BADGE[e.editorRole].label}
+                      <span className={`rounded px-1.5 py-0.5 text-[10px] font-semibold ${roleBadge(e.editorRole).cls}`}>
+                        {roleBadge(e.editorRole).label}
                       </span>
                     )}
                     <span>· {fmtDateTime(e.date)}</span>
@@ -400,8 +408,8 @@ export function UpdateCard({
                   <div className="flex items-center gap-1.5 text-xs text-slate-500">
                     <span className="font-semibold text-slate-700">{c.author}</span>
                     {c.role && (
-                      <span className={`rounded px-1.5 py-0.5 text-[10px] font-semibold ${ROLE_BADGE[c.role].cls}`}>
-                        {ROLE_BADGE[c.role].label}
+                      <span className={`rounded px-1.5 py-0.5 text-[10px] font-semibold ${roleBadge(c.role).cls}`}>
+                        {roleBadge(c.role).label}
                       </span>
                     )}
                     <span>· {fmtDateTime(c.date)}</span>
@@ -438,8 +446,8 @@ export function UpdateCard({
           {!isLatestMode && canComment && onAddComment && (
             <div className="flex items-center gap-2">
               {currentUserRole && (
-                <span className={`hidden shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold sm:inline ${ROLE_BADGE[currentUserRole].cls}`}>
-                  {ROLE_BADGE[currentUserRole].label}
+                <span className={`hidden shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold sm:inline ${roleBadge(currentUserRole).cls}`}>
+                  {roleBadge(currentUserRole).label}
                 </span>
               )}
               <input

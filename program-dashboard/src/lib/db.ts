@@ -127,6 +127,7 @@ function programToRow(p: Program) {
             funding: p.funding ?? null,
             baseline: p.baseline ?? null,
             scopeChanges: p.scopeChanges ?? null,
+            monthlyActuals: p.monthlyActuals ?? null,
           },
         }
       : {}),
@@ -163,6 +164,7 @@ function rowToProgram(r: any): Program {
     otherCosts: r.budget_plan?.otherCosts ?? undefined,
     approvedBudget: r.budget_plan?.approvedBudget ?? undefined,
     spentOverride: r.budget_plan?.spentOverride ?? undefined,
+    monthlyActuals: r.budget_plan?.monthlyActuals ?? undefined,
   }
 }
 

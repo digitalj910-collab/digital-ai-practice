@@ -6,15 +6,19 @@ import {
   Bell,
   ClipboardList,
   Calculator,
+  CalendarRange,
   Users,
   Wallet,
   BarChart3,
+  ShieldCheck,
   HelpCircle,
+  LogOut,
   X,
 } from 'lucide-react'
-import { canSeeBudget, managerScope, useStore, type CurrentUser } from '../store/useStore'
+import { canAdminister, canSeeBudget, visibleDomainIds, useStore, type CurrentUser } from '../store/useStore'
 import { buildAlerts } from '../lib/metrics'
-import type { Role } from '../types'
+import { VPS, DIRECTORS, groupByDirector } from '../lib/org'
+import type { Domain, Role } from '../types'
 
 export type View =
   | { k: 'home' }
@@ -25,13 +29,18 @@ export type View =
   | { k: 'weekly' }
   | { k: 'capacity' }
   | { k: 'budget' }
+  | { k: 'reconcile' }
   | { k: 'reports' }
+  | { k: 'roles' }
   | { k: 'help' }
 
 const ROLE_LABEL: Record<Role, string> = {
+  contributor: 'Contributor — own domain',
+  director: 'Director',
+  senior_director: 'Senior Director',
+  vp: 'VP',
   admin: 'Admin — full access',
-  manager: 'Manager — own domain',
-  viewer: 'Leadership — full access',
+  sandbox: 'Sandbox — all access (test)',
 }
 
 export function Sidebar({
@@ -53,28 +62,46 @@ export function Sidebar({
   const programs = useStore((s) => s.programs)
   const tasks = useStore((s) => s.tasks)
   const user = useStore((s) => s.currentUser)
-  const scope = managerScope(user)
+  const visIds = visibleDomainIds(user, domains.map((d) => d.id))
   const setUser = useStore((s) => s.setUser)
   const resetToSeed = useStore((s) => s.resetToSeed)
 
-  const alertCount = useMemo(() => buildAlerts(programs, tasks).length, [programs, tasks])
+  // Alert badge counts only the domains the viewer can see.
+  const alertCount = useMemo(() => {
+    const scoped = visIds ? programs.filter((p) => visIds.includes(p.domainId)) : programs
+    return buildAlerts(scoped, tasks).length
+  }, [programs, tasks, visIds])
 
-  // Persona presets for the demo role switcher.
+  // Persona presets for the demo role switcher — the full org hierarchy.
   const personas: { id: string; label: string; user: CurrentUser }[] = [
     { id: 'admin', label: 'You (Admin)', user: { role: 'admin', name: 'You (Admin)' } },
-    { id: 'viewer', label: 'Leadership (Viewer)', user: { role: 'viewer', name: 'Leadership' } },
-    ...domains.map((d) => ({
-      id: `mgr-${d.id}`,
-      label: `${d.managerName} · ${d.name}`,
-      user: { role: 'manager' as Role, domainId: d.id, name: d.managerName },
+    ...VPS.map((v) => ({
+      id: `vp-${v.id}`,
+      label: `${v.name} · VP`,
+      user: { role: 'vp' as Role, vpId: v.id, name: v.name },
     })),
+    ...DIRECTORS.map((d) => ({
+      id: `dir-${d.id}`,
+      label: `${d.name} · ${d.unit} (${d.level === 'senior_director' ? 'Sr. Director' : 'Director'})`,
+      user: { role: d.level as Role, directorId: d.id, name: d.name },
+    })),
+    ...domains.map((d) => ({
+      id: `con-${d.id}`,
+      label: `${d.managerName} · ${d.name} (Contributor)`,
+      user: { role: 'contributor' as Role, domainId: d.id, name: d.managerName },
+    })),
+    { id: 'sandbox', label: 'Sandbox (all access)', user: { role: 'sandbox', name: 'Sandbox' } },
   ]
   const currentPersonaId =
     user.role === 'admin'
       ? 'admin'
-      : user.role === 'viewer'
-        ? 'viewer'
-        : `mgr-${user.domainId}`
+      : user.role === 'sandbox'
+        ? 'sandbox'
+        : user.role === 'vp'
+          ? `vp-${user.vpId}`
+          : user.role === 'director' || user.role === 'senior_director'
+            ? `dir-${user.directorId}`
+            : `con-${user.domainId}`
 
   return (
     <>
@@ -106,7 +133,7 @@ export function Sidebar({
       </div>
 
       <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-2">
-        {!scope && (
+        {user.role !== 'contributor' && (
           <NavItem
             active={view.k === 'home'}
             onClick={() => onNavigate({ k: 'home' })}
@@ -133,12 +160,6 @@ export function Sidebar({
           icon={<ClipboardList size={17} />}
           label="Weekly Updates"
         />
-        <NavItem
-          active={view.k === 'capacity'}
-          onClick={() => onNavigate({ k: 'capacity' })}
-          icon={<Users size={17} />}
-          label="Capacity Planning"
-        />
         {canSeeBudget(user) && (
           <NavItem
             active={view.k === 'budget'}
@@ -147,21 +168,50 @@ export function Sidebar({
             label="Budget"
           />
         )}
-        <NavItem
-          active={view.k === 'reports'}
-          onClick={() => onNavigate({ k: 'reports' })}
-          icon={<BarChart3 size={17} />}
-          label="Reports & KPIs"
-        />
-        <NavItem
-          active={false}
-          onClick={() => {
-            onClose?.()
-            onOpenEstimator?.()
-          }}
-          icon={<Calculator size={17} />}
-          label="Estimator"
-        />
+        {canSeeBudget(user) && (
+          <NavItem
+            active={view.k === 'reconcile'}
+            onClick={() => onNavigate({ k: 'reconcile' })}
+            icon={<CalendarRange size={17} />}
+            label="Monthly Budget"
+          />
+        )}
+        {/* Capacity & Estimator: admin + leadership (director/VP). Reports: admin only. */}
+        {canSeeBudget(user) && (
+          <NavItem
+            active={view.k === 'capacity'}
+            onClick={() => onNavigate({ k: 'capacity' })}
+            icon={<Users size={17} />}
+            label="Capacity Planning"
+          />
+        )}
+        {canAdminister(user) && (
+          <NavItem
+            active={view.k === 'reports'}
+            onClick={() => onNavigate({ k: 'reports' })}
+            icon={<BarChart3 size={17} />}
+            label="Reports & KPIs"
+          />
+        )}
+        {canAdminister(user) && (
+          <NavItem
+            active={view.k === 'roles'}
+            onClick={() => onNavigate({ k: 'roles' })}
+            icon={<ShieldCheck size={17} />}
+            label="Roles & Access"
+          />
+        )}
+        {canSeeBudget(user) && (
+          <NavItem
+            active={false}
+            onClick={() => {
+              onClose?.()
+              onOpenEstimator?.()
+            }}
+            icon={<Calculator size={17} />}
+            label="Estimator"
+          />
+        )}
         <NavItem
           active={view.k === 'help'}
           onClick={() => onNavigate({ k: 'help' })}
@@ -169,54 +219,133 @@ export function Sidebar({
           label="Help & Guide"
         />
 
-        <div className="px-3 pb-1 pt-4 text-xs font-semibold uppercase tracking-wide text-slate-500">
-          Domains
-        </div>
-        {domains
-          .filter((d) => !scope || d.id === scope)
-          .map((d) => (
-            <NavItem
-              key={d.id}
-              active={activeDomainId === d.id}
-              onClick={() => onNavigate({ k: 'domain', domainId: d.id })}
-              icon={<span className="h-2.5 w-2.5 rounded-full" style={{ background: d.color }} />}
-              label={d.name}
-            />
-          ))}
+        <DomainNav
+          domains={domains.filter((d) => !visIds || visIds.includes(d.id))}
+          user={user}
+          activeDomainId={activeDomainId}
+          onNavigate={onNavigate}
+        />
       </nav>
 
       <div className="space-y-3 border-t border-slate-800 px-4 py-4">
-        <label className="block">
-          <span className="mb-1 block text-xs font-medium text-slate-400">
-            Viewing as · {ROLE_LABEL[user.role]}
-          </span>
-          <select
-            className="w-full rounded-lg border border-slate-700 bg-slate-800 px-2.5 py-2 text-sm text-slate-100 outline-none focus:border-brand-400"
-            value={currentPersonaId}
-            onChange={(e) => {
-              const p = personas.find((x) => x.id === e.target.value)
-              if (p) setUser(p.user)
-            }}
-          >
-            {personas.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.label}
-              </option>
-            ))}
-          </select>
-        </label>
-        <button
-          onClick={() => {
-            if (confirm('Reset all data back to the sample content?')) resetToSeed()
-          }}
-          className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-slate-700 py-1.5 text-xs text-slate-400 hover:bg-slate-800"
-        >
-          <RotateCcw size={13} />
-          Reset sample data
-        </button>
+        {/* The persona switcher is a DEMO control — only Admin/Sandbox can drive it,
+            so a previewed (restricted) role can't escalate back up to admin. */}
+        {canAdminister(user) ? (
+          <>
+            <label className="block">
+              <span className="mb-1 block text-xs font-medium text-slate-400">
+                Demo · view the app as any role
+              </span>
+              <select
+                className="w-full rounded-lg border border-slate-700 bg-slate-800 px-2.5 py-2 text-sm text-slate-100 outline-none focus:border-brand-400"
+                value={currentPersonaId}
+                onChange={(e) => {
+                  const p = personas.find((x) => x.id === e.target.value)
+                  if (p) setUser(p.user)
+                }}
+              >
+                {personas.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <button
+              onClick={() => {
+                if (confirm('Reset all data back to the sample content?')) resetToSeed()
+              }}
+              className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-slate-700 py-1.5 text-xs text-slate-400 hover:bg-slate-800"
+            >
+              <RotateCcw size={13} />
+              Reset sample data
+            </button>
+          </>
+        ) : (
+          <div className="rounded-lg border border-slate-700 bg-slate-800/60 p-3">
+            <div className="text-[11px] font-medium uppercase tracking-wide text-slate-500">
+              Previewing as
+            </div>
+            <div className="mt-0.5 truncate text-sm font-semibold text-slate-100">{user.name}</div>
+            <div className="text-xs text-slate-400">{ROLE_LABEL[user.role]}</div>
+            <button
+              onClick={() => setUser({ role: 'admin', name: 'You (Admin)' })}
+              className="mt-2 inline-flex items-center gap-1.5 rounded-md border border-slate-600 px-2.5 py-1 text-xs font-semibold text-brand-300 hover:bg-slate-800"
+            >
+              <LogOut size={13} /> Exit preview
+            </button>
+          </div>
+        )}
       </div>
       </aside>
     </>
+  )
+}
+
+/** The "Teams" section of the sidebar, showing the org hierarchy the viewer can
+ *  see: for leadership, domains grouped under their director (VP → director →
+ *  team); for a contributor, just their own team. */
+function DomainNav({
+  domains,
+  user,
+  activeDomainId,
+  onNavigate,
+}: {
+  domains: Domain[]
+  user: CurrentUser
+  activeDomainId: string | null
+  onNavigate: (v: View) => void
+}) {
+  const domainItem = (d: Domain, indent = false) => (
+    <NavItem
+      key={d.id}
+      active={activeDomainId === d.id}
+      onClick={() => onNavigate({ k: 'domain', domainId: d.id })}
+      icon={<span className="h-2.5 w-2.5 rounded-full" style={{ background: d.color }} />}
+      label={d.name}
+      indent={indent}
+    />
+  )
+
+  // Contributors only ever see their own team — no hierarchy to draw.
+  if (user.role === 'contributor') {
+    return (
+      <>
+        <SectionLabel>Your team</SectionLabel>
+        {domains.map((d) => domainItem(d))}
+      </>
+    )
+  }
+
+  // Everyone else sees their teams grouped by the director who owns them.
+  const groups = groupByDirector(domains)
+  return (
+    <>
+      <SectionLabel>Teams</SectionLabel>
+      {groups.map((g) => (
+        <div key={g.director?.id ?? 'other'} className="mb-1">
+          {g.director && (
+            <div className="flex items-baseline gap-1.5 px-3 pb-0.5 pt-2.5">
+              <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+                {g.director.unit}
+              </span>
+              <span className="truncate text-[11px] text-slate-500">
+                {g.director.name} · {g.director.level === 'senior_director' ? 'Sr. Dir' : 'Director'}
+              </span>
+            </div>
+          )}
+          {g.domains.map((d) => domainItem(d, !!g.director))}
+        </div>
+      ))}
+    </>
+  )
+}
+
+function SectionLabel({ children }: { children: ReactNode }) {
+  return (
+    <div className="px-3 pb-1 pt-4 text-xs font-semibold uppercase tracking-wide text-slate-500">
+      {children}
+    </div>
   )
 }
 
@@ -226,19 +355,21 @@ function NavItem({
   icon,
   label,
   badge,
+  indent = false,
 }: {
   active: boolean
   onClick: () => void
   icon: ReactNode
   label: string
   badge?: number
+  indent?: boolean
 }) {
   return (
     <button
       onClick={onClick}
-      className={`relative flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm transition-colors ${
-        active ? 'bg-white/10 font-medium text-white' : 'text-slate-300 hover:bg-white/5'
-      }`}
+      className={`relative flex w-full items-center gap-2.5 rounded-lg py-2 pr-3 text-left text-sm transition-colors ${
+        indent ? 'pl-7' : 'pl-3'
+      } ${active ? 'bg-white/10 font-medium text-white' : 'text-slate-300 hover:bg-white/5'}`}
     >
       {active && (
         <span className="absolute left-0 top-1/2 h-5 w-1 -translate-y-1/2 rounded-r bg-brand-500" />

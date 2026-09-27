@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { AlertTriangle, Calculator, Gauge, TrendingUp, Users } from 'lucide-react'
-import { managerScope, useStore } from '../store/useStore'
+import { canSeeBudget, visibleDomainIds, useStore } from '../store/useStore'
 import { isScheduled } from '../lib/stage'
 import { eachMonthOfInterval, endOfMonth, format, parseISO, startOfMonth } from '../lib/dates'
 import { PageHeader, StatTile } from './ui'
@@ -15,10 +15,10 @@ export function CapacityPlanning({ onOpenProgram }: { onOpenProgram: (programId:
   const user = useStore((s) => s.currentUser)
   const [showCalc, setShowCalc] = useState(false)
 
-  // Managers see only their own domain's capacity.
-  const scope = managerScope(user)
-  const programs = scope ? allPrograms.filter((p) => p.domainId === scope) : allPrograms
-  const domains = scope ? allDomains.filter((d) => d.id === scope) : allDomains
+  // Scoped to the viewer's org subtree (admin-only screen, so usually all).
+  const visIds = visibleDomainIds(user, allDomains.map((d) => d.id))
+  const programs = visIds ? allPrograms.filter((p) => visIds.includes(p.domainId)) : allPrograms
+  const domains = visIds ? allDomains.filter((d) => visIds.includes(d.id)) : allDomains
 
   const domainById = useMemo(() => new Map(domains.map((d) => [d.id, d])), [domains])
 
@@ -97,6 +97,14 @@ export function CapacityPlanning({ onOpenProgram }: { onOpenProgram: (programId:
         <div className="rounded-xl border border-dashed border-slate-300 py-16 text-center text-sm text-slate-400">
           No active programs with resource data yet.
         </div>
+      </div>
+    )
+  }
+
+  if (!canSeeBudget(user)) {
+    return (
+      <div className="rounded-xl border border-slate-200 bg-white p-8 text-center text-sm text-slate-500">
+        Capacity Planning is available to admins and leadership.
       </div>
     )
   }
