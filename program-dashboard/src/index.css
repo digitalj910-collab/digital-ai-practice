@@ -1,0 +1,58 @@
+@import 'tailwindcss';
+
+/* Brand palette — Air-Canada-inspired red, used as the app's primary accent.
+   Kept separate from the semantic/RAG red so status reds stay meaningful. */
+@theme {
+  --color-brand-50: #fef2f3;
+  --color-brand-100: #fde4e6;
+  --color-brand-300: #f7a1a9;
+  --color-brand-400: #f16775;
+  --color-brand-500: #e11f38;
+  --color-brand-600: #c8102e;
+  --color-brand-700: #a50d25;
+  --color-brand-800: #7f0a1c;
+}
+
+:root {
+  --font-sans: system-ui, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+
+  /* RAG status colors */
+  --rag-green: #16a34a;
+  --rag-amber: #f59e0b;
+  --rag-red: #dc2626;
+  --rag-grey: #94a3b8;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: var(--font-sans);
+  background: #f1f5f9;
+  color: #0f172a;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Thin, unobtrusive scrollbars for the Gantt timeline */
+.thin-scroll::-webkit-scrollbar {
+  height: 10px;
+  width: 10px;
+}
+.thin-scroll::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 9999px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+.thin-scroll::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+  background-clip: content-box;
+}
+.thin-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
