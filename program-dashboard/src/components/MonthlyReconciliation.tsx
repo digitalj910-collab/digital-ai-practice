@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { CalendarRange, ChevronDown, ChevronRight, Landmark, Pencil, Receipt, Scale, Wallet } from 'lucide-react'
 import { canSeeBudget, visibleDomainIds, useStore } from '../store/useStore'
-import { CURRENCY, fmtMoney } from '../lib/budget'
+import { CURRENCY, fmtMoneyCompact } from '../lib/budget'
 import {
   MONTH_LABELS,
   type MonthCell,
@@ -113,17 +113,17 @@ export function MonthlyReconciliation() {
       ) : (
         <>
           {/* Portfolio year totals */}
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-            <StatTile icon={<Wallet size={18} />} accent="#0f172a" label={`Planned ${year}`} value={fmtMoney(portfolioTotals.planned)} />
-            <StatTile icon={<Receipt size={18} />} accent="#0d9488" label="Actual to date" value={fmtMoney(portfolioTotals.actual)} />
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-5">
+            <StatTile icon={<Wallet size={18} />} accent="#0f172a" label={`Planned ${year}`} value={fmtMoneyCompact(portfolioTotals.planned)} />
+            <StatTile icon={<Receipt size={18} />} accent="#0d9488" label="Actual to date" value={fmtMoneyCompact(portfolioTotals.actual)} />
             <StatTile
               icon={<Scale size={18} />}
               accent={portfolioTotals.variance < 0 ? '#dc2626' : '#16a34a'}
               label="Variance (plan − actual)"
-              value={fmtMoney(portfolioTotals.variance)}
+              value={fmtMoneyCompact(portfolioTotals.variance)}
             />
-            <StatTile icon={<Landmark size={18} />} accent="#2563eb" label="CapEx actual" value={fmtMoney(portfolioTotals.capex)} />
-            <StatTile icon={<Landmark size={18} />} accent="#7c3aed" label="OpEx actual" value={fmtMoney(portfolioTotals.opex)} />
+            <StatTile icon={<Landmark size={18} />} accent="#2563eb" label="CapEx actual" value={fmtMoneyCompact(portfolioTotals.capex)} />
+            <StatTile icon={<Landmark size={18} />} accent="#7c3aed" label="OpEx actual" value={fmtMoneyCompact(portfolioTotals.opex)} />
           </div>
 
           {/* Portfolio month-by-month */}
@@ -147,10 +147,10 @@ export function MonthlyReconciliation() {
                     <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: domain.color }} />
                     <span className="flex-1 font-semibold text-slate-800">{domain.name}</span>
                     <span className="hidden gap-4 text-xs text-slate-500 sm:flex">
-                      <span>Planned <strong className="text-slate-700">{fmtMoney(totals.planned)}</strong></span>
-                      <span>Actual <strong className="text-slate-700">{fmtMoney(totals.actual)}</strong></span>
+                      <span>Planned <strong className="text-slate-700">{fmtMoneyCompact(totals.planned)}</strong></span>
+                      <span>Actual <strong className="text-slate-700">{fmtMoneyCompact(totals.actual)}</strong></span>
                       <span className={totals.variance < 0 ? 'text-red-600' : 'text-emerald-600'}>
-                        Var <strong>{fmtMoney(totals.variance)}</strong>
+                        Var <strong>{fmtMoneyCompact(totals.variance)}</strong>
                       </span>
                     </span>
                   </button>
@@ -195,7 +195,7 @@ export function MonthlyReconciliation() {
 
   // Local: renders the 12-month planned/actual/variance/capex/opex table.
   function MonthTable({ months, totals }: { months: MonthCell[]; totals: ReturnType<typeof totalsOf> }) {
-    const money = (n: number) => (n === 0 ? <span className="text-slate-300">—</span> : fmtMoney(n))
+    const money = (n: number) => (n === 0 ? <span className="text-slate-300">—</span> : fmtMoneyCompact(n))
     return (
       <div className="overflow-x-auto">
         <table className="w-full min-w-[560px] text-sm">
@@ -219,7 +219,7 @@ export function MonthlyReconciliation() {
                   <td className="px-3 py-1.5 text-right tabular-nums">{money(m.planned)}</td>
                   <td className="px-3 py-1.5 text-right tabular-nums">{money(m.actual)}</td>
                   <td className={`px-3 py-1.5 text-right tabular-nums ${empty ? '' : variance < 0 ? 'text-red-600' : 'text-emerald-600'}`}>
-                    {empty ? <span className="text-slate-300">—</span> : fmtMoney(variance)}
+                    {empty ? <span className="text-slate-300">—</span> : fmtMoneyCompact(variance)}
                   </td>
                   <td className="px-3 py-1.5 text-right tabular-nums">{money(m.capex)}</td>
                   <td className="px-3 py-1.5 text-right tabular-nums">{money(m.opex)}</td>
@@ -230,13 +230,13 @@ export function MonthlyReconciliation() {
           <tfoot>
             <tr className="border-t-2 border-slate-200 font-semibold text-slate-800">
               <td className="py-2 pr-3">Year</td>
-              <td className="px-3 py-2 text-right tabular-nums">{fmtMoney(totals.planned)}</td>
-              <td className="px-3 py-2 text-right tabular-nums">{fmtMoney(totals.actual)}</td>
+              <td className="px-3 py-2 text-right tabular-nums">{fmtMoneyCompact(totals.planned)}</td>
+              <td className="px-3 py-2 text-right tabular-nums">{fmtMoneyCompact(totals.actual)}</td>
               <td className={`px-3 py-2 text-right tabular-nums ${totals.variance < 0 ? 'text-red-600' : 'text-emerald-600'}`}>
-                {fmtMoney(totals.variance)}
+                {fmtMoneyCompact(totals.variance)}
               </td>
-              <td className="px-3 py-2 text-right tabular-nums">{fmtMoney(totals.capex)}</td>
-              <td className="px-3 py-2 text-right tabular-nums">{fmtMoney(totals.opex)}</td>
+              <td className="px-3 py-2 text-right tabular-nums">{fmtMoneyCompact(totals.capex)}</td>
+              <td className="px-3 py-2 text-right tabular-nums">{fmtMoneyCompact(totals.opex)}</td>
             </tr>
           </tfoot>
         </table>
@@ -256,13 +256,13 @@ function ProgramRow({ row, onEnter }: { row: ReconRow; onEnter: (monthIndex?: nu
           <span className="truncate text-sm font-medium text-slate-800">{row.name}</span>
         </button>
         <span className="text-xs text-slate-500">
-          Plan <strong className="text-slate-700">{fmtMoney(row.planned)}</strong>
+          Plan <strong className="text-slate-700">{fmtMoneyCompact(row.planned)}</strong>
         </span>
         <span className="text-xs text-slate-500">
-          Actual <strong className="text-slate-700">{fmtMoney(row.actual)}</strong>
+          Actual <strong className="text-slate-700">{fmtMoneyCompact(row.actual)}</strong>
         </span>
         <span className={`text-xs ${row.variance < 0 ? 'text-red-600' : 'text-emerald-600'}`}>
-          Var <strong>{fmtMoney(row.variance)}</strong>
+          Var <strong>{fmtMoneyCompact(row.variance)}</strong>
         </span>
         <button
           onClick={() => onEnter(undefined)}
@@ -280,14 +280,14 @@ function ProgramRow({ row, onEnter }: { row: ReconRow; onEnter: (monthIndex?: nu
               <button
                 key={i}
                 onClick={() => onEnter(i)}
-                title={`${MONTH_LABELS[i]} — planned ${fmtMoney(m.planned)}, actual ${fmtMoney(m.actual)}. Click to enter actuals.`}
+                title={`${MONTH_LABELS[i]} — planned ${fmtMoneyCompact(m.planned)}, actual ${fmtMoneyCompact(m.actual)}. Click to enter actuals.`}
                 className={`rounded-lg border px-1.5 py-1 text-left transition hover:border-brand-300 hover:bg-brand-50 ${
                   empty ? 'border-slate-100 bg-slate-50/50' : 'border-slate-200 bg-white'
                 }`}
               >
                 <div className="text-[10px] font-medium uppercase text-slate-400">{MONTH_LABELS[i]}</div>
                 <div className="truncate text-xs font-semibold text-slate-700">
-                  {m.actual > 0 ? fmtMoney(m.actual) : <span className="text-slate-300">{CURRENCY}0</span>}
+                  {m.actual > 0 ? fmtMoneyCompact(m.actual) : <span className="text-slate-300">{CURRENCY}0</span>}
                 </div>
               </button>
             )

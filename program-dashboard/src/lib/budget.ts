@@ -68,6 +68,13 @@ export function fmtMoney(n: number): string {
   return `${CURRENCY}${v.toLocaleString()}`
 }
 
+/** Like fmtMoney but keeps 1k–10k in "k" too (e.g. £9.6k), so budget tables read consistently. */
+export function fmtMoneyCompact(n: number): string {
+  const v = Math.round(n)
+  if (Math.abs(v) >= 1_000 && Math.abs(v) < 10_000) return `${CURRENCY}${(v / 1000).toFixed(1)}k`
+  return fmtMoney(v)
+}
+
 /** Working days across a program's calendar span (min 0). 0 when unscheduled. */
 export function workingDays(startDate: string, endDate: string): number {
   if (!startDate || !endDate) return 0
