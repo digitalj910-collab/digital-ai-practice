@@ -380,8 +380,9 @@ export function HelpView({ onNavigate }: { onNavigate: (v: View) => void }) {
           </Faq>
           <Faq q="Where do I land when I switch roles?">
             A <strong>Manager</strong> lands on their own team's page (with New program, Weekly
-            check-in and Import to hand). <strong>Directors, VPs and Admin</strong> land on the Overview,
-            scoped to the teams they oversee.
+            check-in and Import to hand). The <strong>Director</strong> lands on the Portfolio Timeline —
+            each manager's roadmap, agreed plan vs where it stands now, with a count per team of
+            projects now finishing later than agreed (e.g. "2 of 4 late"). <strong>VP and Admin</strong> land on the Overview.
           </Faq>
           <Faq q="Can I see every project that was ever blocked?">
             Yes — on a team view or the Portfolio Timeline, use the <strong>"Ever flagged"</strong>

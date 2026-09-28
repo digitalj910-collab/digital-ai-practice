@@ -19,10 +19,11 @@ import { Estimator } from './components/Estimator'
 // Where a persona lands by default: a domain manager on their own team's page,
 // everyone else (Admin / Leadership) on the portfolio Overview.
 function defaultLanding(user: { role: string; domainId?: string }): View {
-  // A contributor lands on their own domain; everyone else on the Overview.
-  return user.role === 'contributor' && user.domainId
-    ? { k: 'domain', domainId: user.domainId }
-    : { k: 'home' }
+  // A manager lands on their own team; the director on the timeline (agreed vs
+  // actual roadmap per manager); everyone else on the Overview.
+  if (user.role === 'contributor' && user.domainId) return { k: 'domain', domainId: user.domainId }
+  if (user.role === 'director') return { k: 'portfolio' }
+  return { k: 'home' }
 }
 
 export default function App() {

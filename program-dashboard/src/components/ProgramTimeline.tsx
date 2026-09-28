@@ -27,7 +27,7 @@ import {
 // One bar per program on a shared timeline. Used for the domain view (flat,
 // single color) and the portfolio view (grouped by domain, colored per domain).
 export type TimelineRow =
-  | { kind: 'group'; label: string; color: string }
+  | { kind: 'group'; label: string; color: string; sub?: string; warn?: boolean }
   | { kind: 'program'; program: Program; color: string }
 
 const ROW_H = 40
@@ -353,6 +353,11 @@ export function ProgramTimeline({
               >
                 <span className="h-2.5 w-2.5 rounded-sm" style={{ background: r.color }} />
                 <span className="text-sm font-semibold text-slate-800">{r.label}</span>
+                {r.sub && (
+                  <span className={`truncate text-xs ${r.warn ? 'font-medium text-amber-700' : 'text-slate-500'}`}>
+                    {r.sub}
+                  </span>
+                )}
               </div>
             ) : (
               (() => {

@@ -50,7 +50,23 @@ export function PortfolioView({
           hasMarker(p, statusChanges, markerFilter),
       )
       if (domainPrograms.length === 0) continue
-      out.push({ kind: 'group', label: domain.name, color: domain.color })
+      // Agreed vs actual per manager: how many baselined projects now finish later
+      // than the end date that was agreed.
+      const baselined = domainPrograms.filter((p) => p.baseline)
+      const behind = baselined.filter((p) => p.endDate > p.baseline!.endDate).length
+      out.push({
+        kind: 'group',
+        label: domain.name,
+        color: domain.color,
+        sub: `${domain.managerName} · ${
+          baselined.length === 0
+            ? 'no agreed plan'
+            : behind === 0
+              ? 'all on plan'
+              : `${behind} of ${baselined.length} late`
+        }`,
+        warn: behind > 0,
+      })
       for (const program of domainPrograms) {
         out.push({ kind: 'program', program, color: domain.color })
       }
@@ -71,7 +87,8 @@ export function PortfolioView({
           <div>
             <h1 className="text-2xl font-bold text-slate-900">Portfolio Timeline</h1>
             <p className="mt-0.5 text-sm text-slate-500">
-              Every program across all domains on one timeline — for leadership reporting.
+              Each manager's roadmap — the thin bar is the originally agreed plan, the solid bar is
+              where it stands now.
             </p>
           </div>
         </div>
