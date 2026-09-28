@@ -4,8 +4,9 @@ import { programBudget, type RateCardSource } from './budget'
 
 // Monthly budget reconciliation: planned vs. actual spend per program per month,
 // on a CALENDAR fiscal year (Jan–Dec), split CapEx/OpEx and rolled up by domain
-// and portfolio. Planned is the program's estimate spread evenly across the
-// months its plan spans; actuals are entered manually per resource role.
+// and portfolio. Planned is the program's baseline-locked cost (else its live
+// estimate) spread evenly across its plan months; actuals are entered manually
+// per resource role.
 
 export const MONTH_LABELS = [
   'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
@@ -79,11 +80,16 @@ export function reconcileProgram(
 ): ReconRow {
   const months = emptyMonths()
 
-  // Planned: spread the program's estimated cost evenly across every month its
-  // plan spans (over its whole life), then keep the months that fall in `year`.
-  const span = programMonths(program)
+  // Planned: the agreed cost locked in the baseline, spread evenly over the
+  // baseline months — so a slip or re-rate shows up as variance, not a moved
+  // plan. Unbaselined programs fall back to the live estimate over live dates.
+  // Keep only the months that fall in `year`.
+  const bl = program.baseline?.plannedCost != null ? program.baseline : undefined
+  const span = programMonths(bl ? { ...program, startDate: bl.startDate, endDate: bl.endDate } : program)
   if (span.length > 0) {
-    const est = programBudget(program, tasks.filter((t) => t.programId === program.id), rateCard).estimated
+    const est = bl
+      ? bl.plannedCost!
+      : programBudget(program, tasks.filter((t) => t.programId === program.id), rateCard).estimated
     const per = est / span.length
     for (const key of span) {
       const [yy, mm] = key.split('-').map(Number)

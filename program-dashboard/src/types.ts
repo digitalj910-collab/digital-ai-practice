@@ -70,6 +70,12 @@ export interface RateCardEntry {
 export interface RolePlanEntry {
   role: string
   count: number
+  /** Day rate agreed for this role ON THIS PROJECT. Copied from the rate card when
+   *  the project is saved, then owned by the project — later rate-card edits don't
+   *  move it. Directors / VPs / Admin can change it on the project. */
+  dayRate?: number
+  /** Third-party vendor supplying this role (blank = internal staff). */
+  vendor?: string
 }
 
 /** A non-labour cost line on a program (infrastructure, licences, etc.). */
@@ -107,6 +113,10 @@ export interface Baseline {
   startDate: string
   endDate: string
   estimatedPoints?: number
+  /** Agreed total cost at lock time (team × project rates + other costs). The
+   *  Monthly Budget's "planned" line spreads THIS over the baseline months, so a
+   *  later slip or rate change shows up as variance instead of moving the plan. */
+  plannedCost?: number
   /** ISO datetime the baseline was locked. */
   lockedAt: string
   lockedBy: string

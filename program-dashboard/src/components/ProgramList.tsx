@@ -14,7 +14,7 @@ import {
   Receipt,
   Users,
 } from 'lucide-react'
-import { canEditDomain, canSeeBudget, isAdmin, visibleDomainIds, useStore } from '../store/useStore'
+import { canCreateProgram, canEditDomain, canEditProgramPlan, canSeeBudget, isAdmin, visibleDomainIds, useStore } from '../store/useStore'
 import { byPriority, isBacklog, isScheduled } from '../lib/stage'
 import { programPercent } from '../lib/rag'
 import { exportPrograms } from '../lib/excel'
@@ -120,6 +120,8 @@ export function ProgramList({
   }
 
   const canEdit = canEditDomain(user, domainId)
+  const canCreate = canCreateProgram(user, domainId)
+  const canEditPlan = canEditProgramPlan(user, domainId)
   const TYPE_CHIPS: (ProjectType | 'all')[] = ['all', 'enhancement', 'initiative', 'technical']
 
   return (
@@ -164,11 +166,13 @@ export function ProgramList({
                 <FileSpreadsheet size={16} />
                 Import Excel
               </Button>
-              <Button onClick={() => setShowProgramForm(true)}>
-                <Plus size={16} />
-                New program
-              </Button>
             </>
+          )}
+          {canCreate && (
+            <Button onClick={() => setShowProgramForm(true)}>
+              <Plus size={16} />
+              New program
+            </Button>
           )}
         </div>
       </div>
@@ -341,7 +345,7 @@ export function ProgramList({
                     >
                       {p.priority ? PRIORITY_LABELS[p.priority] : '—'}
                     </span>
-                    {canEdit && (
+                    {canEditPlan && (
                       <button
                         onClick={() => setEditProgram(p)}
                         className="inline-flex shrink-0 items-center gap-1 rounded-lg bg-brand-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-brand-700"

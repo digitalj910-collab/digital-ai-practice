@@ -92,6 +92,17 @@ function rateFor(role: string, rateCard: RateCardEntry[]): number {
   return rateCard.find((r) => r.role === role)?.dayRate ?? blendedDayRate(rateCard)
 }
 
+/** The day rate a staffing line is costed at: the rate locked on the project, else the card's. */
+export function lineRate(entry: RolePlanEntry, rateCard: RateCardEntry[]): number {
+  return entry.dayRate ?? rateFor(entry.role, rateCard)
+}
+
+/** Copy today's card rate onto every line that doesn't carry one yet, so the
+ *  project owns its rates from then on (rate-card edits no longer move it). */
+export function lockRates(plan: RolePlanEntry[], rateCard: RateCardEntry[]): RolePlanEntry[] {
+  return plan.map((r) => (r.dayRate != null ? r : { ...r, dayRate: rateFor(r.role, rateCard) }))
+}
+
 /**
  * A rate card, or a resolver that returns the right card for a given domain id.
  * Passing a resolver lets a roll-up use each domain's own rate card.
@@ -127,7 +138,18 @@ export function laborCost(program: Program, src: RateCardSource): number {
   const rateCard = resolveCard(src, program.domainId)
   const days = workingDays(program.startDate, program.endDate)
   const plan = effectiveRolePlan(program)
-  return Math.round(plan.reduce((a, r) => a + r.count * rateFor(r.role, rateCard) * days, 0))
+  return Math.round(plan.reduce((a, r) => a + r.count * lineRate(r, rateCard) * days, 0))
+}
+
+/** Give a program its own copy of the rates (from `rateCard`) and, if it has a
+ *  baseline, lock the agreed cost at the baseline dates. */
+export function lockProgramPlan(program: Program, rateCard: RateCardEntry[]): Program {
+  const team = lockRates(effectiveRolePlan(program), rateCard)
+  const p: Program = { ...program, rolePlan: team.length ? team : undefined }
+  const bl = p.baseline
+  if (!bl) return p
+  const atBaseline = { ...p, startDate: bl.startDate, endDate: bl.endDate }
+  return { ...p, baseline: { ...bl, plannedCost: laborCost(atBaseline, rateCard) + otherTotal(p) } }
 }
 
 export function otherTotal(program: Program): number {

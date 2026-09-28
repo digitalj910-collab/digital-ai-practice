@@ -15,7 +15,9 @@ const TIERS: { key: Tier; label: string }[] = [
 
 const ROWS: { label: string; cells: Record<Tier, boolean | string> }[] = [
   { label: 'Domains visible', cells: { contributor: 'Own 1', director: 'Assigned', vp: "Directors'", admin: 'All' } },
-  { label: 'Data entry (programs, updates)', cells: { contributor: true, director: false, vp: false, admin: true } },
+  { label: 'Data entry (tasks, weekly updates)', cells: { contributor: true, director: false, vp: false, admin: true } },
+  { label: 'Create projects', cells: { contributor: true, director: true, vp: false, admin: true } },
+  { label: "Set a project's rates & vendors", cells: { contributor: false, director: true, vp: true, admin: true } },
   { label: 'Budget & cost', cells: { contributor: false, director: true, vp: true, admin: true } },
   { label: 'Monthly budget (planned vs actual)', cells: { contributor: false, director: true, vp: true, admin: true } },
   { label: 'Planning tools (Estimator, Capacity, Rate card)', cells: { contributor: false, director: true, vp: true, admin: true } },

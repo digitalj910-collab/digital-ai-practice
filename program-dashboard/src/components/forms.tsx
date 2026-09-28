@@ -4,7 +4,7 @@ import type { Domain, Funding, Priority, Program, ProgramStatus, ProjectType, Ra
 import { PROGRAM_STATUS_LABELS, PRIORITY_LABELS, PROJECT_TYPE_LABELS, FUNDING_LABELS, MARKED_STATUSES } from '../types'
 import { canDeleteProgram, canSeeBudget, useStore } from '../store/useStore'
 import { fmtDate, toIso } from '../lib/dates'
-import { CURRENCY, effectiveRolePlan, fmtMoney, laborCost, otherTotal, teamHeadcount, teamVelocity } from '../lib/budget'
+import { CURRENCY, effectiveRolePlan, fmtMoney, laborCost, lockRates, otherTotal, teamHeadcount, teamVelocity } from '../lib/budget'
 import { estimate } from '../lib/forecast'
 import { RoleMixEditor } from './RoleMixEditor'
 import { Button, Field, Modal, inputClass } from './ui'
@@ -70,7 +70,9 @@ export function ProgramForm({
     priority: existing?.priority ?? ('medium' as Priority),
     plannedResources: existing?.plannedResources ?? 0,
     currentResources: existing?.currentResources ?? 0,
-    rolePlan: (existing?.rolePlan ?? []) as RolePlanEntry[],
+    // Headcount-only projects open with the same team the project page shows, so
+    // leadership can put rates/vendors on it (saved as the project's own team).
+    rolePlan: (existing ? effectiveRolePlan(existing) : []) as RolePlanEntry[],
     deprioritized: existing?.deprioritized ?? false,
     deprioritizedReason: existing?.deprioritizedReason ?? '',
     approvedBudget: existing?.approvedBudget != null ? String(existing.approvedBudget) : '',
@@ -123,7 +125,8 @@ export function ProgramForm({
         : toIso(new Date())
       : undefined
     const { approvedBudget: abRaw, otherCostsTotal: ocRaw, rolePlan: rp, ...rest } = form
-    const cleanPlan = rp.filter((r) => r.role.trim() && r.count > 0)
+    // Lock today's card rate onto any line without one, so the project owns its rates.
+    const cleanPlan = lockRates(rp.filter((r) => r.role.trim() && r.count > 0), rateCard)
     const payload = {
       ...rest,
       // The role mix is the source of truth for headcount when it's set.
@@ -355,13 +358,18 @@ export function ProgramForm({
 
         <Field
           label="Team composition"
-          hint="Add any mix of roles (PM, BA, developers…). Delivery roles drive the date; all roles count toward cost & headcount."
+          hint={
+            showMoney
+              ? 'Roles, vendor and day rate for THIS project. Rates start from the rate card and are kept on the project — later rate-card changes don’t affect it.'
+              : 'Add any mix of roles (PM, BA, developers…). Delivery roles drive the date; all roles count toward headcount.'
+          }
         >
           <RoleMixEditor
             value={form.rolePlan}
             onChange={(v) => set('rolePlan', v)}
             rateCard={rateCard}
             showCost={showMoney}
+            editRates={showMoney}
           />
         </Field>
 

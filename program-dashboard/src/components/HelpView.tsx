@@ -167,8 +167,9 @@ export function HelpView({ onNavigate }: { onNavigate: (v: View) => void }) {
         <div className="space-y-2.5">
           <Feature icon={<Lock size={15} />} label="Lock the agreed plan">
             Once a roadmap is agreed, open the project and <strong>Lock baseline</strong> — it captures
-            the original start and end dates. The baseline never changes, so the originally-agreed plan
-            is always preserved.
+            the original start and end dates <strong>and the agreed cost</strong> (team × the project's
+            rates + other costs). The baseline never changes, so the originally-agreed plan is always
+            preserved — and the Monthly Budget's "planned" line is that locked cost.
           </Feature>
           <Feature label="Planned vs. current at a glance">
             The Gantt draws a thin indigo <strong>"originally planned"</strong> bar beneath the live
@@ -203,9 +204,18 @@ export function HelpView({ onNavigate }: { onNavigate: (v: View) => void }) {
           </Feature>
           <Feature icon={<Receipt size={15} />} label="Rate card (per team)">
             Each team sets its own <strong>day rate and points-per-sprint by role</strong>, and can
-            differ from other teams. Rates drive every labour-cost estimate (Estimator, kickoff,
-            Budget); points-per-sprint drive the delivery date. A team starts from the organisation
-            default until it customises.
+            differ from other teams. The rate card is the <strong>starting point</strong> for new
+            projects and the Estimator; points-per-sprint drive the delivery date. A team starts from
+            the organisation default until it customises.
+          </Feature>
+          <Feature icon={<Receipt size={15} />} label="Project rates (each project owns its own)">
+            When a project is saved, each role's day rate is <strong>copied onto the project</strong>.
+            From then on, editing the rate card does <strong>not</strong> change existing projects.
+            Directors, VPs and Admin can set a project's rates — and name a{' '}
+            <strong>third-party vendor</strong> per role — in <strong>Edit program → Team
+            composition</strong>. The project page's <strong>Project cost plan</strong> lists role,
+            vendor, people, day rate and cost. Managers build the team (roles + headcount) but never see
+            rates or cost.
           </Feature>
           <Feature icon={<Wallet size={15} />} label="Budget model">
             Labour = staffing × role day-rate × working days; add other costs = <em>estimated</em>. A
@@ -215,8 +225,9 @@ export function HelpView({ onNavigate }: { onNavigate: (v: View) => void }) {
           </Feature>
           <Feature icon={<CalendarRange size={15} />} label="Monthly reconciliation">
             The <strong>Monthly Budget</strong> screen tracks <strong>planned vs. actual</strong> spend
-            month by month across the calendar year. Planned is each program's estimate spread over the
-            months it runs; <strong>actuals are entered per resource role</strong> (PM, developer, BA…),
+            month by month across the calendar year. Planned is each program's <strong>baseline-locked
+            cost</strong> spread over its baseline months (a program not yet baselined uses its current
+            estimate) — so slips and re-rates show as variance instead of moving the plan; <strong>actuals are entered per resource role</strong> (PM, developer, BA…),
             each tagged <strong>CapEx or OpEx</strong>. Variance and the CapEx/OpEx split roll up by team
             and portfolio. "Prefill from rate card" seeds a month from day-rates to save typing.
           </Feature>
@@ -284,11 +295,12 @@ export function HelpView({ onNavigate }: { onNavigate: (v: View) => void }) {
           <RoleRow role="Director / Sr. Director" color="#c8102e">
             Oversees their <strong>assigned team(s)</strong> in full detail — programs, timelines,
             budget, alerts — but only their own; another director's teams are invisible, even under
-            the same VP.
+            the same VP. Can create projects in their teams and set each project's rates/vendors.
           </RoleRow>
           <RoleRow role="VP" color="#7c3aed">
             Oversees their directors' teams — a <strong>rollup by default</strong>, drill into any one
-            of them for full detail (budget included). Never another VP's tree.
+            of them for full detail (budget included), and can set a project's rates/vendors. Never
+            another VP's tree.
           </RoleRow>
           <RoleRow role="Admin" color="#0d9488">
             Full access to everything — all teams, all settings, plus Reports & KPIs, Capacity
@@ -349,8 +361,8 @@ export function HelpView({ onNavigate }: { onNavigate: (v: View) => void }) {
           <Faq q="Can each team have its own rates?">
             Yes. Every team has its own rate card (plus T-shirt scale and capacity settings). Rate cards
             hold money, so <strong>Admin/Leadership</strong> set them from the team's Planning tools row;
-            a team starts from the organisation default (Budget page) until customised. Budgets roll up
-            on each team's own rates. Managers set the non-money plan settings (estimator scale, capacity).
+            a team starts from the organisation default (Budget page) until customised. Each project then
+            keeps its own copy of the rates, so changing a rate card only affects new projects. Managers set the non-money plan settings (estimator scale, capacity).
           </Faq>
           <Faq q="What are CapEx and OpEx, and where do I see the split?">
             Every project is classified <strong>CapEx</strong> (capital — building new assets) or

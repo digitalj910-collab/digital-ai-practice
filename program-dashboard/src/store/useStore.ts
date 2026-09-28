@@ -12,7 +12,7 @@ import type {
   UpdateEdit,
   UpdateFieldChange,
 } from '../types'
-import { DEFAULT_RATE_CARD, normalizeRateCard } from '../lib/budget'
+import { DEFAULT_RATE_CARD, lockProgramPlan, normalizeRateCard } from '../lib/budget'
 import { uid } from '../lib/id'
 import { supabaseEnabled } from '../lib/supabase'
 import {
@@ -420,6 +420,10 @@ export const useStore = create<State>()((set, get) => ({
 
   resetToSeed: () => {
     const seed = seedSnapshot()
+    // Sample projects take their own copy of each team's CURRENT rates (and lock
+    // the agreed cost on their baseline), just like a project saved in the app.
+    const { rateCard, rateCardsByDomain } = get()
+    seed.programs = seed.programs.map((p) => lockProgramPlan(p, rateCardsByDomain[p.domainId] ?? rateCard))
     set({ ...seed })
     if (supabaseEnabled) resetRemote(seed).catch((e) => console.error('Reset failed:', e))
   },
@@ -429,8 +433,10 @@ export const useStore = create<State>()((set, get) => ({
 // Org-hierarchy roles (see src/lib/org.ts):
 //  - contributor: data entry, scoped to their own domain. No money.
 //  - director / senior_director: oversee their assigned domains (view + budget +
-//    comment). No data entry, no admin settings.
-//  - vp: oversee their directors' domains (view + budget + comment).
+//    comment), and may create projects / edit a project's plan & rates there.
+//    No task/update data entry, no admin settings.
+//  - vp: oversee their directors' domains (view + budget + comment + a
+//    project's plan & rates).
 //  - admin / sandbox: full access to everything.
 
 /** Data-entry capability anywhere (create/edit programs, tasks, updates). */
@@ -471,6 +477,20 @@ export function canSeeBudget(user: CurrentUser): boolean {
 /** Re-export the org-tree domain visibility so components import it from one place. */
 export function visibleDomainIds(user: CurrentUser, allDomainIds: string[]): string[] | null {
   return orgVisibleDomainIds(user, allDomainIds)
+}
+
+/** Who may create a project in a domain: its manager, plus directors over it. */
+export function canCreateProgram(user: CurrentUser, domainId: string): boolean {
+  if (canEditDomain(user, domainId)) return true
+  const leads = user.role === 'director' || user.role === 'senior_director'
+  return leads && (visibleDomainIds(user, [domainId]) ?? []).includes(domainId)
+}
+
+/** Who may edit a project's plan (Edit program — team, project rates, vendors) and
+ *  lock its baseline: whoever can create it, plus the VP over it. */
+export function canEditProgramPlan(user: CurrentUser, domainId: string): boolean {
+  if (canCreateProgram(user, domainId)) return true
+  return user.role === 'vp' && (visibleDomainIds(user, [domainId]) ?? []).includes(domainId)
 }
 
 /** Who may EDIT a weekly update — the same data-entry rule as editing the domain. */

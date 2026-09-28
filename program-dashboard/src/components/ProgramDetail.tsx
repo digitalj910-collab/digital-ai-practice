@@ -5,6 +5,7 @@ import {
   canDeleteTask,
   canDeleteUpdate,
   canEditDomain,
+  canEditProgramPlan,
   canEditUpdate,
   canSeeBudget,
   isAdmin,
@@ -14,7 +15,7 @@ import {
 import { programPercent } from '../lib/rag'
 import { deliveryRisk, resourceUtilization, RISK_META } from '../lib/metrics'
 import { forecast } from '../lib/forecast'
-import { CURRENCY, effectiveRolePlan, fmtMoney, programBudget } from '../lib/budget'
+import { CURRENCY, effectiveRolePlan, fmtMoney, lineRate, lockProgramPlan, programBudget, workingDays } from '../lib/budget'
 import { PRIORITY_LABELS } from '../types'
 import { fmtDate, toIso } from '../lib/dates'
 import { differenceInCalendarDays, parseISO } from 'date-fns'
@@ -86,6 +87,7 @@ export function ProgramDetail({ programId }: { programId: string }) {
   }
 
   const canEdit = canEditDomain(user, program.domainId)
+  const canEditPlan = canEditProgramPlan(user, program.domainId)
   const canEditU = canEditUpdate(user, program.domainId)
   const canDeleteU = canDeleteUpdate(user, program.domainId)
   const canDelete = canDeleteTask(user, program)
@@ -93,7 +95,8 @@ export function ProgramDetail({ programId }: { programId: string }) {
   const risk = deliveryRisk(program, tasks)
   const util = resourceUtilization(program)
   const fc = forecast(program, tasks)
-  const budget = programBudget(program, tasks, cardsByDomain[program.domainId] ?? rateCard)
+  const card = cardsByDomain[program.domainId] ?? rateCard
+  const budget = programBudget(program, tasks, card)
   const staffing = effectiveRolePlan(program)
 
   // ---- Baseline & scope ----
@@ -103,16 +106,24 @@ export function ProgramDetail({ programId }: { programId: string }) {
     ? differenceInCalendarDays(parseISO(program.endDate), parseISO(baseline.endDate))
     : 0
 
-  const lockBaseline = () =>
-    updateProgram(program.id, {
-      baseline: {
-        startDate: program.startDate,
-        endDate: program.endDate,
-        estimatedPoints: program.estimatedPoints,
-        lockedAt: new Date().toISOString(),
-        lockedBy: user.name,
+  // Locking the baseline also fixes the project's rates and agreed cost, so the
+  // Monthly Budget's "planned" line stops moving from here on.
+  const lockBaseline = () => {
+    const { rolePlan, baseline } = lockProgramPlan(
+      {
+        ...program,
+        baseline: {
+          startDate: program.startDate,
+          endDate: program.endDate,
+          estimatedPoints: program.estimatedPoints,
+          lockedAt: new Date().toISOString(),
+          lockedBy: user.name,
+        },
       },
-    })
+      card,
+    )
+    updateProgram(program.id, { rolePlan, baseline })
+  }
   const clearBaseline = () => updateProgram(program.id, { baseline: undefined })
   const addScopeChange = (sc: { note: string; newEndDate?: string; addedPoints?: number }) => {
     const rec: ScopeChange = { id: uid('sc'), date: toIso(new Date()), author: user.name, ...sc }
@@ -139,7 +150,7 @@ export function ProgramDetail({ programId }: { programId: string }) {
               )}
             </div>
           </div>
-          {canEdit && (
+          {canEditPlan && (
             <Button variant="secondary" onClick={() => setEditProgram(true)}>
               <Pencil size={15} />
               Edit program
@@ -393,12 +404,63 @@ export function ProgramDetail({ programId }: { programId: string }) {
           )}
         </div>
         <div className="rounded-xl border border-slate-200 bg-white p-3">
-          <div className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-400">Cost build-up ({CURRENCY})</div>
-          <div className="flex flex-wrap gap-x-6 gap-y-1 text-sm text-slate-600">
-            <span>Labour <strong className="text-slate-800">{fmtMoney(budget.labor)}</strong></span>
-            <span>Other <strong className="text-slate-800">{fmtMoney(budget.other)}</strong></span>
-            <span className="text-slate-400">Staffing: {staffing.length ? staffing.map((r) => `${r.count} ${r.role}`).join(' · ') : '—'}</span>
+          <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2">
+            <div className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+              Project cost plan ({CURRENCY})
+            </div>
+            <div className="text-xs text-slate-400">
+              Rates are this project's own — change them in “Edit program”.
+              {program.baseline?.plannedCost != null && (
+                <> Agreed cost locked at <strong className="text-slate-600">{fmtMoney(program.baseline.plannedCost)}</strong>.</>
+              )}
+            </div>
           </div>
+          {staffing.length > 0 ? (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="text-left text-xs text-slate-400">
+                  <tr>
+                    <th className="py-1 pr-3 font-medium">Role</th>
+                    <th className="py-1 pr-3 font-medium">Vendor</th>
+                    <th className="py-1 pr-3 text-right font-medium">People</th>
+                    <th className="py-1 pr-3 text-right font-medium">Day rate</th>
+                    <th className="py-1 text-right font-medium">Cost</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 text-slate-700">
+                  {staffing.map((r, i) => {
+                    const rate = lineRate(r, card)
+                    return (
+                      <tr key={i}>
+                        <td className="py-1.5 pr-3">{r.role}</td>
+                        <td className="py-1.5 pr-3 text-slate-500">{r.vendor || 'Internal'}</td>
+                        <td className="py-1.5 pr-3 text-right tabular-nums">{r.count}</td>
+                        <td className="py-1.5 pr-3 text-right tabular-nums">
+                          {CURRENCY}{rate.toLocaleString()}
+                          {r.dayRate == null && <span className="ml-1 text-[10px] text-amber-600">card</span>}
+                        </td>
+                        <td className="py-1.5 text-right tabular-nums">
+                          {fmtMoney(r.count * rate * workingDays(program.startDate, program.endDate))}
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+                <tfoot className="border-t border-slate-200 text-slate-800">
+                  <tr>
+                    <td colSpan={4} className="py-1.5 pr-3">Labour</td>
+                    <td className="py-1.5 text-right font-semibold tabular-nums">{fmtMoney(budget.labor)}</td>
+                  </tr>
+                  <tr>
+                    <td colSpan={4} className="py-1 pr-3">Other costs</td>
+                    <td className="py-1 text-right font-semibold tabular-nums">{fmtMoney(budget.other)}</td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          ) : (
+            <p className="text-sm text-slate-400">No team planned yet — add roles in “Edit program”.</p>
+          )}
         </div>
       </section>
       )}
@@ -431,7 +493,7 @@ export function ProgramDetail({ programId }: { programId: string }) {
               ({fmtDate(program.startDate)} – {fmtDate(program.endDate)}) once it's agreed, so slippage
               and scope changes are measured against the original.
             </div>
-            {canEdit && (
+            {canEditPlan && (
               <Button onClick={lockBaseline}>
                 <Lock size={15} /> Lock baseline
               </Button>
