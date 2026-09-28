@@ -6,6 +6,7 @@ import { DomainGrid } from './components/DomainGrid'
 import { ProgramList } from './components/ProgramList'
 import { ProgramDetail } from './components/ProgramDetail'
 import { PortfolioView } from './components/PortfolioView'
+import { ExecutiveSummary } from './components/ExecutiveSummary'
 import { AlertsView } from './components/AlertsView'
 import { WeeklyUpdatesView } from './components/WeeklyUpdatesView'
 import { CapacityPlanning } from './components/CapacityPlanning'
@@ -23,6 +24,7 @@ function defaultLanding(user: { role: string; domainId?: string }): View {
   // actual roadmap per manager); everyone else on the Overview.
   if (user.role === 'contributor' && user.domainId) return { k: 'domain', domainId: user.domainId }
   if (user.role === 'director') return { k: 'portfolio' }
+  if (user.role === 'vp') return { k: 'summary' }
   return { k: 'home' }
 }
 
@@ -115,6 +117,12 @@ export default function App() {
                 <Crumb active>Portfolio timeline</Crumb>
               </>
             )}
+            {view.k === 'summary' && (
+              <>
+                <ChevronRight size={14} className="text-slate-300" />
+                <Crumb active>Executive Summary</Crumb>
+              </>
+            )}
             {view.k === 'alerts' && (
               <>
                 <ChevronRight size={14} className="text-slate-300" />
@@ -189,6 +197,12 @@ export default function App() {
               onOpenAlerts={() => setView({ k: 'alerts' })}
               onOpenProgram={(programId) => setView({ k: 'program', programId })}
               onNavigate={navigate}
+            />
+          )}
+          {view.k === 'summary' && (
+            <ExecutiveSummary
+              onOpenDomain={(domainId) => setView({ k: 'domain', domainId })}
+              onOpenProgram={(programId) => setView({ k: 'program', programId })}
             />
           )}
           {view.k === 'domain' && (

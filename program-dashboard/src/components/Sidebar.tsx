@@ -13,6 +13,7 @@ import {
   ShieldCheck,
   HelpCircle,
   LogOut,
+  Presentation,
   X,
 } from 'lucide-react'
 import { canAdminister, canSeeBudget, visibleDomainIds, useStore, type CurrentUser } from '../store/useStore'
@@ -22,6 +23,7 @@ import type { Domain, Role } from '../types'
 
 export type View =
   | { k: 'home' }
+  | { k: 'summary' }
   | { k: 'domain'; domainId: string }
   | { k: 'program'; programId: string }
   | { k: 'portfolio' }
@@ -128,6 +130,14 @@ export function Sidebar({
       </div>
 
       <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-2">
+        {user.role !== 'contributor' && (
+          <NavItem
+            active={view.k === 'summary'}
+            onClick={() => onNavigate({ k: 'summary' })}
+            icon={<Presentation size={17} />}
+            label="Executive Summary"
+          />
+        )}
         {user.role !== 'contributor' && (
           <NavItem
             active={view.k === 'home'}
