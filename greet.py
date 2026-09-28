@@ -1,5 +1,5 @@
 def greet(name):
-    """Retun a friendly greeting for name."""
+    """Return a friendly greeting for name."""
     return f"Hello, {name}!"
 
 
