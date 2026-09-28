@@ -63,6 +63,7 @@ export function Sidebar({
   const tasks = useStore((s) => s.tasks)
   const user = useStore((s) => s.currentUser)
   const visIds = visibleDomainIds(user, domains.map((d) => d.id))
+  const isVp = user.role === 'vp'
   const setUser = useStore((s) => s.setUser)
   const resetToSeed = useStore((s) => s.resetToSeed)
 
@@ -130,6 +131,7 @@ export function Sidebar({
       </div>
 
       <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-2">
+        {/* The VP gets a trimmed menu: summary level only, no planning tools. */}
         {user.role !== 'contributor' && (
           <NavItem
             active={view.k === 'summary'}
@@ -138,7 +140,7 @@ export function Sidebar({
             label="Executive Summary"
           />
         )}
-        {user.role !== 'contributor' && (
+        {user.role !== 'contributor' && !isVp && (
           <NavItem
             active={view.k === 'home'}
             onClick={() => onNavigate({ k: 'home' })}
@@ -165,7 +167,7 @@ export function Sidebar({
           icon={<ClipboardList size={17} />}
           label="Weekly Updates"
         />
-        {canSeeBudget(user) && (
+        {canSeeBudget(user) && !isVp && (
           <NavItem
             active={view.k === 'budget'}
             onClick={() => onNavigate({ k: 'budget' })}
@@ -181,8 +183,8 @@ export function Sidebar({
             label="Monthly Budget"
           />
         )}
-        {/* Capacity & Estimator: admin + leadership (director/VP). Reports: admin only. */}
-        {canSeeBudget(user) && (
+        {/* Capacity & Estimator: admin + director. Reports: admin only. */}
+        {canSeeBudget(user) && !isVp && (
           <NavItem
             active={view.k === 'capacity'}
             onClick={() => onNavigate({ k: 'capacity' })}
@@ -206,7 +208,7 @@ export function Sidebar({
             label="Roles & Access"
           />
         )}
-        {canSeeBudget(user) && (
+        {canSeeBudget(user) && !isVp && (
           <NavItem
             active={false}
             onClick={() => {

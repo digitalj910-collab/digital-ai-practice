@@ -108,16 +108,23 @@ export default function App() {
         <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6">
           {/* Breadcrumb */}
           <nav className="mb-5 flex items-center gap-1.5 text-sm text-slate-500">
-            <Crumb onClick={() => setView({ k: 'home' })} active={view.k === 'home'}>
-              Overview
-            </Crumb>
+            {/* The VP's home is the Executive Summary (no Overview in their menu). */}
+            {user.role === 'vp' ? (
+              <Crumb onClick={() => setView({ k: 'summary' })} active={view.k === 'summary'}>
+                Executive Summary
+              </Crumb>
+            ) : (
+              <Crumb onClick={() => setView({ k: 'home' })} active={view.k === 'home'}>
+                Overview
+              </Crumb>
+            )}
             {view.k === 'portfolio' && (
               <>
                 <ChevronRight size={14} className="text-slate-300" />
                 <Crumb active>Portfolio timeline</Crumb>
               </>
             )}
-            {view.k === 'summary' && (
+            {view.k === 'summary' && user.role !== 'vp' && (
               <>
                 <ChevronRight size={14} className="text-slate-300" />
                 <Crumb active>Executive Summary</Crumb>

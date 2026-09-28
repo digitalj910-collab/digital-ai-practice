@@ -305,8 +305,9 @@ export function HelpView({ onNavigate }: { onNavigate: (v: View) => void }) {
             alerts. Can create projects and set each project's rates/vendors.
           </RoleRow>
           <RoleRow role="VP" color="#7c3aed">
-            Oversees all five teams — a <strong>rollup by default</strong>, drill into any one for full
-            detail (budget included), and can set a project's rates/vendors.
+            Oversees all five teams at <strong>summary level</strong> — lands on the Executive Summary,
+            reads the director's weekly rollup, can drill into any team, and can set a project's
+            rates/vendors. No planning tools.
           </RoleRow>
           <RoleRow role="Admin" color="#0d9488">
             Full access to everything — all teams, all settings, plus Reports & KPIs, Capacity
@@ -315,7 +316,8 @@ export function HelpView({ onNavigate }: { onNavigate: (v: View) => void }) {
         </div>
         <div className="mt-3 space-y-1.5 text-sm text-slate-600">
           <p>• <strong>Money</strong> (Budget, Monthly Budget, costs, rate cards) is seen by Admin, the Director and the VP — never Managers.</p>
-          <p>• <strong>Capacity Planning</strong> and the <strong>Estimator / Rate-card</strong> tools are available to Admin and the Director/VP tiers (scoped to their teams); <strong>Reports & KPIs</strong> is admin-only.</p>
+          <p>• <strong>Capacity Planning</strong> and the <strong>Estimator / Rate-card</strong> tools are available to Admin and the Director; <strong>Reports & KPIs</strong> is admin-only.</p>
+          <p>• The <strong>VP</strong> gets a trimmed menu — Executive Summary, Portfolio timeline, Alerts, Weekly Updates (director rollups) and Monthly Budget — plus the team pages.</p>
           <p>• Admins get a <strong>Roles & Access</strong> screen to preview the app as any role — handy for demos.</p>
           <p>• Isolation is enforced in the data, not just the menu — you can't reach another team's data even by a direct link.</p>
         </div>
