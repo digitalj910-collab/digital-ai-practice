@@ -18,7 +18,6 @@ import {
   Users,
 } from 'lucide-react'
 import { canSeeBudget, isAdmin, visibleDomainIds, useStore } from '../store/useStore'
-import { groupByDirector } from '../lib/org'
 import { programPercent, rollupRag, RAG_COLORS } from '../lib/rag'
 import { buildAlerts, deliveryRisk, portfolioMetrics } from '../lib/metrics'
 import { byPriority, isBacklog } from '../lib/stage'
@@ -178,7 +177,7 @@ export function DomainGrid({
 
       <Snapshot title="Portfolio snapshot" lines={portfolioSummary(programs, tasks, updates, domains)} />
 
-      {/* Domain cards — grouped by director so the VP → director → team hierarchy is visible */}
+      {/* Team cards */}
       {(() => {
         const renderCard = (d: Domain) => {
           const domainPrograms = programs.filter((p) => p.domainId === d.id)
@@ -250,31 +249,7 @@ export function DomainGrid({
           )
         }
 
-        // Contributors see only their own team — no director grouping needed.
-        if (user.role === 'contributor') {
-          return <div className="grid gap-4 sm:grid-cols-2">{domains.map(renderCard)}</div>
-        }
-        // Everyone else: group the team cards under their director.
-        return (
-          <div className="space-y-6">
-            {groupByDirector(domains).map((g) => (
-              <section key={g.director?.id ?? 'other'} className="space-y-3">
-                {g.director && (
-                  <h2 className="flex flex-wrap items-baseline gap-2">
-                    <span className="rounded-md bg-slate-100 px-2 py-0.5 text-xs font-bold uppercase tracking-wide text-slate-600">
-                      {g.director.unit}
-                    </span>
-                    <span className="text-sm font-semibold text-slate-800">{g.director.name}</span>
-                    <span className="text-xs font-normal text-slate-400">
-                      {g.director.level === 'senior_director' ? 'Senior Director' : 'Director'}
-                    </span>
-                  </h2>
-                )}
-                <div className="grid gap-4 sm:grid-cols-2">{g.domains.map(renderCard)}</div>
-              </section>
-            ))}
-          </div>
-        )
+        return <div className="grid gap-4 sm:grid-cols-2">{domains.map(renderCard)}</div>
       })()}
 
       {/* Portfolio backlog — staged programs (no dates yet) across all teams. */}

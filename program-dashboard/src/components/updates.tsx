@@ -31,12 +31,10 @@ import {
 } from '../types'
 
 const ROLE_BADGE: Record<Role, { label: string; cls: string }> = {
-  contributor: { label: 'Contributor', cls: 'bg-slate-100 text-slate-600' },
+  contributor: { label: 'Manager', cls: 'bg-slate-100 text-slate-600' },
   director: { label: 'Director', cls: 'bg-brand-100 text-brand-700' },
-  senior_director: { label: 'Sr. Director', cls: 'bg-brand-100 text-brand-700' },
   vp: { label: 'VP', cls: 'bg-purple-100 text-purple-700' },
   admin: { label: 'Admin', cls: 'bg-teal-100 text-teal-700' },
-  sandbox: { label: 'Sandbox', cls: 'bg-amber-100 text-amber-700' },
 }
 
 // Safe lookup — older data may carry a retired role value; fall back gracefully.

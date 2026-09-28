@@ -17,7 +17,7 @@ import {
 } from 'lucide-react'
 import { canAdminister, canSeeBudget, visibleDomainIds, useStore, type CurrentUser } from '../store/useStore'
 import { buildAlerts } from '../lib/metrics'
-import { VPS, DIRECTORS, groupByDirector } from '../lib/org'
+import { VPS, DIRECTORS } from '../lib/org'
 import type { Domain, Role } from '../types'
 
 export type View =
@@ -35,12 +35,10 @@ export type View =
   | { k: 'help' }
 
 const ROLE_LABEL: Record<Role, string> = {
-  contributor: 'Contributor — own domain',
-  director: 'Director',
-  senior_director: 'Senior Director',
+  contributor: 'Manager — own team',
+  director: 'Director — all teams',
   vp: 'VP',
   admin: 'Admin — full access',
-  sandbox: 'Sandbox — all access (test)',
 }
 
 export function Sidebar({
@@ -82,26 +80,23 @@ export function Sidebar({
     })),
     ...DIRECTORS.map((d) => ({
       id: `dir-${d.id}`,
-      label: `${d.name} · ${d.unit} (${d.level === 'senior_director' ? 'Sr. Director' : 'Director'})`,
-      user: { role: d.level as Role, directorId: d.id, name: d.name },
+      label: `${d.name} · Director`,
+      user: { role: 'director' as Role, directorId: d.id, name: d.name },
     })),
     ...domains.map((d) => ({
       id: `con-${d.id}`,
-      label: `${d.managerName} · ${d.name} (Contributor)`,
+      label: `${d.managerName} · ${d.name} (Manager)`,
       user: { role: 'contributor' as Role, domainId: d.id, name: d.managerName },
     })),
-    { id: 'sandbox', label: 'Sandbox (all access)', user: { role: 'sandbox', name: 'Sandbox' } },
   ]
   const currentPersonaId =
     user.role === 'admin'
       ? 'admin'
-      : user.role === 'sandbox'
-        ? 'sandbox'
-        : user.role === 'vp'
-          ? `vp-${user.vpId}`
-          : user.role === 'director' || user.role === 'senior_director'
-            ? `dir-${user.directorId}`
-            : `con-${user.domainId}`
+      : user.role === 'vp'
+        ? `vp-${user.vpId}`
+        : user.role === 'director'
+          ? `dir-${user.directorId}`
+          : `con-${user.domainId}`
 
   return (
     <>
@@ -228,7 +223,7 @@ export function Sidebar({
       </nav>
 
       <div className="space-y-3 border-t border-slate-800 px-4 py-4">
-        {/* The persona switcher is a DEMO control — only Admin/Sandbox can drive it,
+        {/* The persona switcher is a DEMO control — only Admin can drive it,
             so a previewed (restricted) role can't escalate back up to admin. */}
         {canAdminister(user) ? (
           <>
@@ -282,9 +277,8 @@ export function Sidebar({
   )
 }
 
-/** The "Teams" section of the sidebar, showing the org hierarchy the viewer can
- *  see: for leadership, domains grouped under their director (VP → director →
- *  team); for a contributor, just their own team. */
+/** The "Teams" section of the sidebar: the teams the viewer can see (a manager
+ *  sees just their own). */
 function DomainNav({
   domains,
   user,
@@ -296,46 +290,17 @@ function DomainNav({
   activeDomainId: string | null
   onNavigate: (v: View) => void
 }) {
-  const domainItem = (d: Domain, indent = false) => (
-    <NavItem
-      key={d.id}
-      active={activeDomainId === d.id}
-      onClick={() => onNavigate({ k: 'domain', domainId: d.id })}
-      icon={<span className="h-2.5 w-2.5 rounded-full" style={{ background: d.color }} />}
-      label={d.name}
-      indent={indent}
-    />
-  )
-
-  // Contributors only ever see their own team — no hierarchy to draw.
-  if (user.role === 'contributor') {
-    return (
-      <>
-        <SectionLabel>Your team</SectionLabel>
-        {domains.map((d) => domainItem(d))}
-      </>
-    )
-  }
-
-  // Everyone else sees their teams grouped by the director who owns them.
-  const groups = groupByDirector(domains)
   return (
     <>
-      <SectionLabel>Teams</SectionLabel>
-      {groups.map((g) => (
-        <div key={g.director?.id ?? 'other'} className="mb-1">
-          {g.director && (
-            <div className="flex items-baseline gap-1.5 px-3 pb-0.5 pt-2.5">
-              <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
-                {g.director.unit}
-              </span>
-              <span className="truncate text-[11px] text-slate-500">
-                {g.director.name} · {g.director.level === 'senior_director' ? 'Sr. Dir' : 'Director'}
-              </span>
-            </div>
-          )}
-          {g.domains.map((d) => domainItem(d, !!g.director))}
-        </div>
+      <SectionLabel>{user.role === 'contributor' ? 'Your team' : 'Teams'}</SectionLabel>
+      {domains.map((d) => (
+        <NavItem
+          key={d.id}
+          active={activeDomainId === d.id}
+          onClick={() => onNavigate({ k: 'domain', domainId: d.id })}
+          icon={<span className="h-2.5 w-2.5 rounded-full" style={{ background: d.color }} />}
+          label={d.name}
+        />
       ))}
     </>
   )
@@ -355,21 +320,17 @@ function NavItem({
   icon,
   label,
   badge,
-  indent = false,
 }: {
   active: boolean
   onClick: () => void
   icon: ReactNode
   label: string
   badge?: number
-  indent?: boolean
 }) {
   return (
     <button
       onClick={onClick}
-      className={`relative flex w-full items-center gap-2.5 rounded-lg py-2 pr-3 text-left text-sm transition-colors ${
-        indent ? 'pl-7' : 'pl-3'
-      } ${active ? 'bg-white/10 font-medium text-white' : 'text-slate-300 hover:bg-white/5'}`}
+      className={`relative flex w-full items-center gap-2.5 rounded-lg py-2 pl-3 pr-3 text-left text-sm transition-colors ${active ? 'bg-white/10 font-medium text-white' : 'text-slate-300 hover:bg-white/5'}`}
     >
       {active && (
         <span className="absolute left-0 top-1/2 h-5 w-1 -translate-y-1/2 rounded-r bg-brand-500" />

@@ -284,23 +284,22 @@ export function HelpView({ onNavigate }: { onNavigate: (v: View) => void }) {
       {/* ---- Roles ---- */}
       <Section icon={<Users size={17} />} title="Roles & access rules" defaultOpen>
         <p className="mb-2 text-sm text-slate-600">
-          It's an org hierarchy with <strong>strict isolation</strong> — you only ever see your own
-          part of the tree (domain → director → VP → admin). Peers never see each other's data.
+          A simple org: <strong>5 teams</strong>, each run by a manager, all under{' '}
+          <strong>one director</strong> and <strong>one VP</strong>. Managers only ever see their own
+          team.
         </p>
         <div className="space-y-2 text-sm">
-          <RoleRow role="Contributor" color="#64748b">
+          <RoleRow role="Manager" color="#64748b">
             Data entry in <strong>their own team only</strong> — programs, tasks, weekly check-ins,
             baselines, scope changes. Does not see money or other teams.
           </RoleRow>
-          <RoleRow role="Director / Sr. Director" color="#c8102e">
-            Oversees their <strong>assigned team(s)</strong> in full detail — programs, timelines,
-            budget, alerts — but only their own; another director's teams are invisible, even under
-            the same VP. Can create projects in their teams and set each project's rates/vendors.
+          <RoleRow role="Director" color="#c8102e">
+            Oversees <strong>all five teams</strong> in full detail — programs, timelines, budget,
+            alerts. Can create projects and set each project's rates/vendors.
           </RoleRow>
           <RoleRow role="VP" color="#7c3aed">
-            Oversees their directors' teams — a <strong>rollup by default</strong>, drill into any one
-            of them for full detail (budget included), and can set a project's rates/vendors. Never
-            another VP's tree.
+            Oversees all five teams — a <strong>rollup by default</strong>, drill into any one for full
+            detail (budget included), and can set a project's rates/vendors.
           </RoleRow>
           <RoleRow role="Admin" color="#0d9488">
             Full access to everything — all teams, all settings, plus Reports & KPIs, Capacity
@@ -308,11 +307,10 @@ export function HelpView({ onNavigate }: { onNavigate: (v: View) => void }) {
           </RoleRow>
         </div>
         <div className="mt-3 space-y-1.5 text-sm text-slate-600">
-          <p>• <strong>Money</strong> (Budget, Monthly Budget, costs, rate cards) is seen by Admin and the Director/VP tiers — never Contributors — and always scoped to their own teams.</p>
+          <p>• <strong>Money</strong> (Budget, Monthly Budget, costs, rate cards) is seen by Admin, the Director and the VP — never Managers.</p>
           <p>• <strong>Capacity Planning</strong> and the <strong>Estimator / Rate-card</strong> tools are available to Admin and the Director/VP tiers (scoped to their teams); <strong>Reports & KPIs</strong> is admin-only.</p>
           <p>• Admins get a <strong>Roles & Access</strong> screen to preview the app as any role — handy for demos.</p>
           <p>• Isolation is enforced in the data, not just the menu — you can't reach another team's data even by a direct link.</p>
-          <p>• The <strong>Sandbox</strong> role in the switcher unlocks everything, for internal testing only.</p>
         </div>
         <p className="mt-2 text-xs text-slate-400">Switch roles with the "Viewing as" dropdown at the bottom-left.</p>
       </Section>
@@ -381,7 +379,7 @@ export function HelpView({ onNavigate }: { onNavigate: (v: View) => void }) {
             type <strong>story points</strong> directly — one or the other.
           </Faq>
           <Faq q="Where do I land when I switch roles?">
-            A <strong>Contributor</strong> lands on their own team's page (with New program, Weekly
+            A <strong>Manager</strong> lands on their own team's page (with New program, Weekly
             check-in and Import to hand). <strong>Directors, VPs and Admin</strong> land on the Overview,
             scoped to the teams they oversee.
           </Faq>

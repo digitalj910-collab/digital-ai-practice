@@ -3,8 +3,8 @@
 // normalized into these shapes, so the UI never needs to know where a row
 // originated — it just renders programs and tasks.
 
-// Org-hierarchy roles (see src/lib/org.ts). 'sandbox' is a test-only persona.
-export type Role = 'contributor' | 'director' | 'senior_director' | 'vp' | 'admin' | 'sandbox'
+// Org-hierarchy roles (see src/lib/org.ts). 'contributor' is shown as "Manager".
+export type Role = 'contributor' | 'director' | 'vp' | 'admin'
 
 export type RagStatus = 'green' | 'amber' | 'red'
 

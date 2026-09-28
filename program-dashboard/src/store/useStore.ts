@@ -56,7 +56,7 @@ export interface CurrentUser {
   name: string
   /** For a contributor — the one domain they own. */
   domainId?: string
-  /** For a director / senior_director — which director they are. */
+  /** For a director — which director they are. */
   directorId?: string
   /** For a VP — which VP they are. */
   vpId?: string
@@ -432,46 +432,40 @@ export const useStore = create<State>()((set, get) => ({
 // ---- Permission helpers ----
 // Org-hierarchy roles (see src/lib/org.ts):
 //  - contributor: data entry, scoped to their own domain. No money.
-//  - director / senior_director: oversee their assigned domains (view + budget +
+//  - director: oversees their assigned domains (view + budget +
 //    comment), and may create projects / edit a project's plan & rates there.
 //    No task/update data entry, no admin settings.
 //  - vp: oversee their directors' domains (view + budget + comment + a
 //    project's plan & rates).
-//  - admin / sandbox: full access to everything.
+//  - admin: full access to everything.
 
 /** Data-entry capability anywhere (create/edit programs, tasks, updates). */
 export function canEdit(user: CurrentUser): boolean {
-  return user.role === 'admin' || user.role === 'sandbox' || user.role === 'contributor'
+  return user.role === 'admin' || user.role === 'contributor'
 }
 
 /** Can this user do data entry in a specific domain? Contributors: own domain only. */
 export function canEditDomain(user: CurrentUser, domainId: string): boolean {
-  if (user.role === 'admin' || user.role === 'sandbox') return true
+  if (user.role === 'admin') return true
   if (user.role === 'contributor') return user.domainId === domainId
   return false
 }
 
 /**
  * Admin-level actions that aren't scoped to a single domain — add/edit domains,
- * the vendor rate card, the T-shirt scale, the planning tools. Admin / sandbox only.
+ * the vendor rate card, the T-shirt scale, the planning tools. Admin only.
  */
 export function canAdminister(user: CurrentUser): boolean {
-  return user.role === 'admin' || user.role === 'sandbox'
+  return user.role === 'admin'
 }
 
 /**
  * Who may see money — budget amounts, project costs, rate cards, estimated cost.
- * Admin/sandbox and the leadership tiers (director / senior_director / VP), scoped
+ * Admin and leadership (director / VP), scoped
  * to their own domains. Contributors never see money.
  */
 export function canSeeBudget(user: CurrentUser): boolean {
-  return (
-    user.role === 'admin' ||
-    user.role === 'sandbox' ||
-    user.role === 'director' ||
-    user.role === 'senior_director' ||
-    user.role === 'vp'
-  )
+  return user.role === 'admin' || user.role === 'director' || user.role === 'vp'
 }
 
 /** Re-export the org-tree domain visibility so components import it from one place. */
@@ -482,8 +476,7 @@ export function visibleDomainIds(user: CurrentUser, allDomainIds: string[]): str
 /** Who may create a project in a domain: its manager, plus directors over it. */
 export function canCreateProgram(user: CurrentUser, domainId: string): boolean {
   if (canEditDomain(user, domainId)) return true
-  const leads = user.role === 'director' || user.role === 'senior_director'
-  return leads && (visibleDomainIds(user, [domainId]) ?? []).includes(domainId)
+  return user.role === 'director' && (visibleDomainIds(user, [domainId]) ?? []).includes(domainId)
 }
 
 /** Who may edit a project's plan (Edit program — team, project rates, vendors) and
@@ -513,7 +506,7 @@ export function isAdmin(user: CurrentUser): boolean {
   return canAdminister(user)
 }
 
-/** Deletion: admin/sandbox anywhere; contributors within their own domain. */
+/** Deletion: admin anywhere; contributors within their own domain. */
 export function canDeleteProgram(user: CurrentUser, program: Program): boolean {
   return canEditDomain(user, program.domainId)
 }
