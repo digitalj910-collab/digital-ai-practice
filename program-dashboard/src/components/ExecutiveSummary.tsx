@@ -9,6 +9,7 @@ import { isScheduled } from '../lib/stage'
 import { fmtDate, toIso } from '../lib/dates'
 import { PROGRAM_STATUS_LABELS, type Program, type ProgramStatus } from '../types'
 import { PageHeader, RagDot, StatTile } from './ui'
+import { DirectorUpdatesPanel } from './DirectorUpdates'
 
 // Work that's finished or stopped doesn't need leadership attention.
 const CLOSED: ProgramStatus[] = ['completed', 'cancelled', 'descoped']
@@ -112,6 +113,9 @@ export function ExecutiveSummary({
           />
         )}
       </div>
+
+      {/* The director's latest rollup — the VP's weekly read. */}
+      <DirectorUpdatesPanel limit={1} />
 
       {/* Status by team */}
       <section className="overflow-hidden rounded-xl border border-slate-200 bg-white">

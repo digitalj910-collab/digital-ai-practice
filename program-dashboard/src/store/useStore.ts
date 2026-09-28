@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { visibleDomainIds as orgVisibleDomainIds } from '../lib/org'
 import type {
+  DirectorUpdate,
   Domain,
   Program,
   RateCardEntry,
@@ -28,6 +29,7 @@ import {
 import { TSHIRT_SIZES, type TShirtSize } from '../lib/forecast'
 import {
   seedComments,
+  seedDirectorUpdates,
   seedDomains,
   seedPrograms,
   seedStatusChanges,
@@ -70,6 +72,8 @@ interface State {
   statusChanges: StatusChange[]
   comments: UpdateComment[]
   updateEdits: UpdateEdit[]
+  /** Director → VP weekly rollups (persisted in app_settings). */
+  directorUpdates: DirectorUpdate[]
   currentUser: CurrentUser
   loading: boolean
   initialized: boolean
@@ -117,6 +121,10 @@ interface State {
   updateUpdate: (id: string, patch: Partial<StatusUpdate>) => void
   deleteUpdate: (id: string) => void
 
+  addDirectorUpdate: (u: Omit<DirectorUpdate, 'id'>) => void
+  updateDirectorUpdate: (id: string, patch: Partial<DirectorUpdate>) => void
+  deleteDirectorUpdate: (id: string) => void
+
   /** Post a comment / reply on an update (leadership ↔ manager discussion). */
   addComment: (c: Omit<UpdateComment, 'id'>) => void
   deleteComment: (id: string) => void
@@ -150,6 +158,7 @@ export const useStore = create<State>()((set, get) => ({
   statusChanges: supabaseEnabled ? [] : seedStatusChanges,
   comments: supabaseEnabled ? [] : seedComments,
   updateEdits: supabaseEnabled ? [] : seedUpdateEdits,
+  directorUpdates: seedDirectorUpdates,
   currentUser: initialUser,
   loading: supabaseEnabled,
   initialized: false,
@@ -208,6 +217,8 @@ export const useStore = create<State>()((set, get) => ({
       const savedDomainUpdates = await settingsGet('domain_updates')
       if (Array.isArray(savedDomainUpdates) && savedDomainUpdates.length)
         set((s) => ({ updates: [...savedDomainUpdates, ...s.updates] }))
+      const savedDirectorUpdates = await settingsGet('director_updates')
+      if (Array.isArray(savedDirectorUpdates)) set({ directorUpdates: savedDirectorUpdates })
     } catch (e) {
       console.error('Supabase load failed — falling back to local sample data:', e)
       set({ ...seedSnapshot(), loading: false })
@@ -400,6 +411,20 @@ export const useStore = create<State>()((set, get) => ({
     else run(db.deleteUpdate(id))
   },
 
+  // ---- Director → VP updates (app_settings 'director_updates') ----
+  addDirectorUpdate: (u) => {
+    set((s) => ({ directorUpdates: [{ ...u, id: uid('du') }, ...s.directorUpdates] }))
+    run(settingsSet('director_updates', get().directorUpdates))
+  },
+  updateDirectorUpdate: (id, patch) => {
+    set((s) => ({ directorUpdates: s.directorUpdates.map((u) => (u.id === id ? { ...u, ...patch } : u)) }))
+    run(settingsSet('director_updates', get().directorUpdates))
+  },
+  deleteDirectorUpdate: (id) => {
+    set((s) => ({ directorUpdates: s.directorUpdates.filter((u) => u.id !== id) }))
+    run(settingsSet('director_updates', get().directorUpdates))
+  },
+
   // ---- Update comments (leadership ↔ manager discussion) ----
   addComment: (c) => {
     const rec: UpdateComment = { ...c, id: uid('cm') }
@@ -424,7 +449,8 @@ export const useStore = create<State>()((set, get) => ({
     // the agreed cost on their baseline), just like a project saved in the app.
     const { rateCard, rateCardsByDomain } = get()
     seed.programs = seed.programs.map((p) => lockProgramPlan(p, rateCardsByDomain[p.domainId] ?? rateCard))
-    set({ ...seed })
+    set({ ...seed, directorUpdates: seedDirectorUpdates })
+    run(settingsSet('director_updates', seedDirectorUpdates))
     if (supabaseEnabled) resetRemote(seed).catch((e) => console.error('Reset failed:', e))
   },
 }))

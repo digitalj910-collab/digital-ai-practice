@@ -182,6 +182,25 @@ export interface StatusUpdate {
   note?: string
 }
 
+/**
+ * The director's weekly update to the VP — a short rollup written by the director
+ * (pre-filled from the managers' check-ins), which is what the VP reads instead
+ * of the day-to-day manager feed.
+ */
+export interface DirectorUpdate {
+  id: string
+  directorId: string
+  author: string
+  /** ISO date, yyyy-MM-dd. */
+  date: string
+  /** Overall picture across the teams this week. */
+  summary: string
+  /** Risks, blockers and escalations the VP should know about. */
+  risks?: string
+  /** Decisions or help needed from the VP. */
+  asks?: string
+}
+
 export type UpdateSectionKey =
   | 'progress'
   | 'nextWeeks'

@@ -253,6 +253,13 @@ export function HelpView({ onNavigate }: { onNavigate: (v: View) => void }) {
             this week's check-in and who's still <strong>Pending</strong> — with a count, so you can
             chase the stragglers at a glance. Click a team to open or amend its check-in.
           </Feature>
+          <Feature label="Director update to the VP">
+            Each week the <strong>Director</strong> clicks <strong>Write this week's update</strong> on
+            Weekly Updates. It's pre-filled from the managers' check-ins of the last 7 days; the director
+            trims it to a Summary, Risks &amp; escalations, and Asks of the VP. The <strong>VP</strong> reads
+            only these rollups (on Weekly Updates and at the top of the Executive Summary) — not the
+            manager-by-manager feed.
+          </Feature>
           <Feature label="Comments & discussion">
             Anyone can comment on an update, so it becomes a leadership ↔ manager thread.
           </Feature>

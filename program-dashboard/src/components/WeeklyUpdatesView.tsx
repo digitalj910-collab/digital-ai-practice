@@ -7,6 +7,7 @@ import { exportUpdates } from '../lib/excel'
 import { Button, PageHeader, StatTile, inputClass } from './ui'
 import { UpdateCard, UpdateForm } from './updates'
 import { WeeklyCheckIn } from './WeeklyCheckIn'
+import { DirectorUpdatesPanel } from './DirectorUpdates'
 import type { StatusUpdate } from '../types'
 
 const PERIODS: { key: string; label: string; days: number }[] = [
@@ -151,6 +152,21 @@ export function WeeklyUpdatesView({
   const checkedInCount = teamCheckIns.filter((t) => t.posted).length
   const showCheckInStatus = canAdminister(user) && domains.length > 0
 
+  // The VP reads the director's rollup, not the manager-by-manager feed.
+  if (user.role === 'vp') {
+    return (
+      <div className="space-y-6">
+        <PageHeader
+          icon={<ClipboardList size={22} />}
+          accent="#7c3aed"
+          title="Weekly Updates"
+          subtitle="The director's weekly rollup across all teams."
+        />
+        <DirectorUpdatesPanel />
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -173,6 +189,9 @@ export function WeeklyUpdatesView({
           </>
         }
       />
+
+      {/* Director → VP rollup: the director writes it here; admin can see it. */}
+      {(user.role === 'director' || canAdminister(user)) && <DirectorUpdatesPanel limit={3} />}
 
       {/* This-week summary */}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">

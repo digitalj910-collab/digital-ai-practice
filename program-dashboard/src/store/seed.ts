@@ -1,4 +1,5 @@
 import type {
+  DirectorUpdate,
   Domain,
   Funding,
   MonthlyActual,
@@ -837,6 +838,22 @@ export const seedUpdates: StatusUpdate[] = [
 
 // Example discussions on updates — leadership asks, the manager replies. Author
 // "Leadership" matches the read-only Leadership persona in the sidebar.
+// The director's weekly rollup to the VP (what the VP reads instead of the
+// manager-by-manager feed).
+export const seedDirectorUpdates: DirectorUpdate[] = [
+  {
+    id: 'du_1',
+    directorId: 'dir_ec',
+    author: 'Emma Clark',
+    date: '2026-09-25',
+    summary:
+      'Salesforce is on plan. Customer, ETS, HR Connex and NDC each have a project running late vs the agreed plan — mostly vendor dependencies, not team capacity. Customer Portal Revamp is on track for its 6 Nov launch. Spend is under plan across all five teams.',
+    risks:
+      'Checkout Revamp and ETS Monitoring & Alerting are blocked on vendor sandbox / credentials (25–30 days late). NDC Partner Onboarding slipped 3 weeks on partner readiness.',
+    asks: 'Escalation with the payment vendor to unblock Checkout Revamp this week.',
+  },
+]
+
 export const seedComments: UpdateComment[] = [
   {
     id: 'cm_1',
