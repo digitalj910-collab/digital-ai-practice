@@ -2,3 +2,8 @@
 
 # Local Netlify folder
 .netlify
+
+# Separate repositories that live in this folder - never commit them here.
+# ac-program-pulse is the Air Canada copy and must never reach this GitHub.
+inova8-pulse/
+ac-program-pulse/
