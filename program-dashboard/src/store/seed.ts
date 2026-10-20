@@ -1,0 +1,955 @@
+import type {
+  DirectorUpdate,
+  Domain,
+  Funding,
+  MonthlyActual,
+  Program,
+  StatusChange,
+  StatusUpdate,
+  Task,
+  UpdateComment,
+  UpdateEdit,
+} from '../types'
+import { addDays, parseISO, toIso } from '../lib/dates'
+
+// Real domains + managers for the user's team. The programs below are EXAMPLES
+// (high-level, no subtasks) so the app opens populated — edit or delete them and
+// add the real ones on the UI or via Excel import.
+
+export const seedDomains: Domain[] = [
+  { id: 'd_customer', name: 'Customer', managerName: 'Alex Morgan', color: '#2563eb', budget: 3_000_000 },
+  { id: 'd_salesforce', name: 'Salesforce', managerName: 'Jordan Lee', color: '#7c3aed', budget: 2_400_000 },
+  { id: 'd_ets', name: 'ETS', managerName: 'Taylor Reed', color: '#0d9488', budget: 2_200_000 },
+  { id: 'd_hrai', name: 'HR Connex / AI', managerName: 'Sam Carter', color: '#db2777', budget: 1_600_000 },
+  { id: 'd_ndc', name: 'NDC', managerName: 'Chris Bennett', color: '#ea580c', budget: 1_800_000 },
+]
+
+// EXAMPLE programs — replace with the team's real projects. Each carries a
+// projectType (Enhancement / Initiative-Feature / Technical) used by the
+// domain-view filter and the timeline badges.
+const RAW_PROGRAMS: Program[] = [
+  // Customer — Alex Morgan
+  {
+    id: 'p_cust1',
+    approvedBudget: 850_000,
+    otherCosts: [{ label: 'Infrastructure & licences', amount: 120_000 }],
+    domainId: 'd_customer',
+    name: 'Customer Portal Revamp',
+    funding: 'capex',
+    description: 'Rebuild the self-service portal on the new design system — accounts, billing and support in one place.',
+    owner: 'Alex Morgan',
+    status: 'on_track',
+    ragStatus: 'green',
+    projectType: 'initiative',
+    startDate: '2026-02-02',
+    endDate: '2026-11-06',
+    percentComplete: 60,
+    priority: 'high',
+    plannedResources: 5,
+    currentResources: 5,
+    source: 'manual',
+  },
+  {
+    id: 'p_cust2',
+    domainId: 'd_customer',
+    name: 'Customer 360 View',
+    funding: 'capex',
+    description: 'Unify customer data from CRM, billing and support into a single 360° profile for service teams.',
+    owner: 'Alex Morgan',
+    status: 'at_risk',
+    ragStatus: 'amber',
+    projectType: 'technical',
+    startDate: '2026-03-16',
+    endDate: '2026-12-11',
+    percentComplete: 35,
+    priority: 'medium',
+    plannedResources: 4,
+    currentResources: 3,
+    source: 'manual',
+  },
+
+  // Salesforce — Jordan Lee
+  {
+    id: 'p_sf1',
+    domainId: 'd_salesforce',
+    name: 'Salesforce Lightning Migration',
+    funding: 'capex',
+    description: 'Migrate all sales orgs from Classic to Lightning and retire legacy pages.',
+    owner: 'Jordan Lee',
+    status: 'on_track',
+    ragStatus: 'green',
+    projectType: 'technical',
+    startDate: '2026-01-12',
+    endDate: '2026-09-18',
+    percentComplete: 75,
+    priority: 'high',
+    plannedResources: 6,
+    currentResources: 6,
+    source: 'manual',
+  },
+  {
+    id: 'p_sf2',
+    domainId: 'd_salesforce',
+    name: 'Sales Cloud Automation',
+    funding: 'opex',
+    description: 'Automate lead routing and approval flows to cut manual sales-ops handoffs.',
+    owner: 'Jordan Lee',
+    status: 'on_hold',
+    ragStatus: 'amber',
+    projectType: 'enhancement',
+    startDate: '2026-04-06',
+    endDate: '2026-12-04',
+    percentComplete: 20,
+    priority: 'low',
+    plannedResources: 3,
+    currentResources: 2,
+    deprioritized: true,
+    deprioritizedReason: 'Deferred to next quarter to protect the Lightning migration.',
+    deprioritizedDate: '2026-07-15',
+    statusDate: '2026-07-15',
+    source: 'manual',
+  },
+
+  // ETS — Taylor Reed
+  {
+    id: 'p_ets1',
+    approvedBudget: 950_000,
+    otherCosts: [{ label: 'Platform infrastructure', amount: 150_000 }],
+    domainId: 'd_ets',
+    name: 'ETS Platform Upgrade',
+    funding: 'capex',
+    description: 'Upgrade the enterprise transaction platform to v4 and decommission the legacy stack.',
+    owner: 'Taylor Reed',
+    status: 'on_track',
+    ragStatus: 'green',
+    projectType: 'technical',
+    startDate: '2026-01-05',
+    endDate: '2026-10-16',
+    percentComplete: 50,
+    priority: 'high',
+    plannedResources: 5,
+    currentResources: 4,
+    source: 'manual',
+  },
+  {
+    id: 'p_ets2',
+    domainId: 'd_ets',
+    name: 'ETS Monitoring & Alerting',
+    funding: 'opex',
+    description: 'Stand up end-to-end observability and proactive alerting across core and legacy services.',
+    owner: 'Taylor Reed',
+    status: 'blocked',
+    ragStatus: 'red',
+    projectType: 'initiative',
+    startDate: '2026-02-23',
+    endDate: '2026-10-30',
+    percentComplete: 15,
+    priority: 'medium',
+    statusDate: '2026-08-20',
+    plannedResources: 4,
+    currentResources: 2,
+    source: 'manual',
+  },
+
+  // HR Connex / AI — Sam Carter
+  {
+    id: 'p_hr1',
+    approvedBudget: 620_000,
+    otherCosts: [{ label: 'HR Connex licences', amount: 30_000 }],
+    domainId: 'd_hrai',
+    name: 'HR Connex Rollout',
+    funding: 'capex',
+    description: 'Roll out the new HR Connex platform to all business units and retire the legacy portal.',
+    owner: 'Sam Carter',
+    status: 'on_track',
+    ragStatus: 'green',
+    projectType: 'initiative',
+    startDate: '2026-03-02',
+    endDate: '2026-11-13',
+    percentComplete: 45,
+    priority: 'medium',
+    plannedResources: 4,
+    currentResources: 4,
+    source: 'manual',
+  },
+  {
+    id: 'p_hr2',
+    domainId: 'd_hrai',
+    name: 'HR AI Assistant (Pilot)',
+    funding: 'opex',
+    description: 'Pilot a generative-AI assistant to answer employee HR questions and draft policy responses.',
+    owner: 'Sam Carter',
+    status: 'on_hold',
+    ragStatus: 'amber',
+    projectType: 'initiative',
+    startDate: '2026-05-04',
+    endDate: '2026-12-18',
+    percentComplete: 10,
+    priority: 'low',
+    plannedResources: 2,
+    currentResources: 1,
+    deprioritized: true,
+    deprioritizedReason: 'Paused pending the enterprise AI platform decision.',
+    deprioritizedDate: '2026-08-10',
+    statusDate: '2026-08-10',
+    source: 'manual',
+  },
+
+  // NDC — Chris Bennett
+  {
+    id: 'p_ndc1',
+    domainId: 'd_ndc',
+    name: 'NDC Integration Phase 1',
+    funding: 'capex',
+    description: 'Build the partner API layer and booking-sync services for the New Distribution Capability.',
+    owner: 'Chris Bennett',
+    status: 'on_track',
+    ragStatus: 'green',
+    projectType: 'technical',
+    startDate: '2026-01-19',
+    endDate: '2026-09-25',
+    percentComplete: 55,
+    priority: 'high',
+    plannedResources: 5,
+    currentResources: 5,
+    source: 'manual',
+  },
+  {
+    id: 'p_ndc2',
+    approvedBudget: 420_000,
+    otherCosts: [{ label: 'Partner portal hosting', amount: 45_000 }],
+    spentOverride: 130_000,
+    domainId: 'd_ndc',
+    name: 'NDC Partner Onboarding',
+    funding: 'capex',
+    description: 'Onboard 20 distribution partners through a new self-serve portal and certification flow.',
+    owner: 'Chris Bennett',
+    status: 'at_risk',
+    ragStatus: 'amber',
+    projectType: 'initiative',
+    startDate: '2026-04-13',
+    endDate: '2026-12-04',
+    percentComplete: 25,
+    estimatedPoints: 80,
+    priority: 'medium',
+    plannedResources: 3,
+    currentResources: 3,
+    source: 'manual',
+  },
+
+  // --- Additional example projects (varied statuses) ---
+  {
+    id: 'p_cust3',
+    approvedBudget: 480_000,
+    otherCosts: [{ label: 'Payment-gateway setup', amount: 60_000 }],
+    spentOverride: 300_000,
+    domainId: 'd_customer',
+    name: 'Checkout Revamp',
+    funding: 'opex',
+    description: 'Improve the checkout flow and add a new payment gateway to lift conversion.',
+    owner: 'Alex Morgan',
+    status: 'blocked',
+    ragStatus: 'red',
+    projectType: 'enhancement',
+    startDate: '2026-04-01',
+    endDate: '2026-11-30',
+    percentComplete: 40,
+    priority: 'high',
+    statusDate: '2026-08-15',
+    plannedResources: 4,
+    currentResources: 3,
+    source: 'manual',
+  },
+  {
+    id: 'p_cust4',
+    domainId: 'd_customer',
+    name: 'Loyalty Program Redesign',
+    funding: 'capex',
+    description: 'Redesign the loyalty tiers and rewards engine for the next-gen program.',
+    owner: 'Alex Morgan',
+    status: 'cancelled',
+    ragStatus: 'red',
+    projectType: 'initiative',
+    startDate: '2026-02-01',
+    endDate: '2026-08-30',
+    percentComplete: 45,
+    priority: 'low',
+    statusDate: '2026-06-30',
+    plannedResources: 3,
+    currentResources: 0,
+    source: 'manual',
+  },
+  {
+    id: 'p_sf3',
+    domainId: 'd_salesforce',
+    name: 'CPQ Implementation',
+    funding: 'capex',
+    description: 'Implement Configure-Price-Quote to standardize quoting and approvals across sales.',
+    owner: 'Jordan Lee',
+    status: 'postponed',
+    ragStatus: 'amber',
+    projectType: 'initiative',
+    startDate: '2026-05-01',
+    endDate: '2026-12-15',
+    percentComplete: 15,
+    priority: 'medium',
+    statusDate: '2026-07-01',
+    plannedResources: 3,
+    currentResources: 1,
+    source: 'manual',
+  },
+  {
+    id: 'p_ets3',
+    domainId: 'd_ets',
+    name: 'Legacy Reporting Sunset',
+    funding: 'opex',
+    description: 'Migrate business-critical reports off the legacy engine and decommission it.',
+    owner: 'Taylor Reed',
+    status: 'descoped',
+    ragStatus: 'amber',
+    projectType: 'technical',
+    startDate: '2026-03-01',
+    endDate: '2026-09-30',
+    percentComplete: 30,
+    priority: 'low',
+    statusDate: '2026-07-20',
+    plannedResources: 2,
+    currentResources: 1,
+    source: 'manual',
+  },
+  {
+    id: 'p_hr3',
+    domainId: 'd_hrai',
+    name: 'Benefits Self-Service',
+    funding: 'opex',
+    description: 'Add self-service benefits enrollment and life-event changes to the HR portal.',
+    owner: 'Sam Carter',
+    status: 'not_started',
+    ragStatus: 'green',
+    projectType: 'enhancement',
+    startDate: '2026-09-01',
+    endDate: '2027-03-31',
+    percentComplete: 0,
+    priority: 'medium',
+    plannedResources: 3,
+    currentResources: 0,
+    source: 'manual',
+  },
+  {
+    id: 'p_ndc3',
+    domainId: 'd_ndc',
+    name: 'NDC Analytics',
+    funding: 'capex',
+    description: 'Delivered partner-performance dashboards and a booking-analytics data pipeline.',
+    owner: 'Chris Bennett',
+    status: 'completed',
+    ragStatus: 'green',
+    projectType: 'initiative',
+    startDate: '2026-01-05',
+    endDate: '2026-06-30',
+    percentComplete: 100,
+    priority: 'medium',
+    plannedResources: 3,
+    currentResources: 3,
+    source: 'manual',
+  },
+
+  // --- Backlog (no dates yet — staged, not on any timeline) ---
+  {
+    id: 'p_bk1',
+    domainId: 'd_customer',
+    name: 'Mobile App Refresh',
+    funding: 'capex',
+    description: 'Rebuild the customer mobile app on the new design system (staged, not scheduled).',
+    owner: 'Alex Morgan',
+    status: 'not_started',
+    ragStatus: 'green',
+    projectType: 'initiative',
+    startDate: '',
+    endDate: '',
+    percentComplete: 0,
+    estimatedPoints: 80,
+    priority: 'high',
+    plannedResources: 4,
+    currentResources: 0,
+    source: 'manual',
+  },
+  {
+    id: 'p_bk2',
+    domainId: 'd_ets',
+    name: 'API Gateway Consolidation',
+    funding: 'opex',
+    description: 'Consolidate legacy API gateways onto one platform (staged, not scheduled).',
+    owner: 'Taylor Reed',
+    status: 'not_started',
+    ragStatus: 'green',
+    projectType: 'technical',
+    startDate: '',
+    endDate: '',
+    percentComplete: 0,
+    estimatedPoints: 160,
+    priority: 'medium',
+    plannedResources: 3,
+    currentResources: 0,
+    source: 'manual',
+  },
+  {
+    id: 'p_bk3',
+    domainId: 'd_salesforce',
+    name: 'Field Service Lightning',
+    funding: 'capex',
+    description: 'Evaluate and roll out Field Service Lightning (staged, not scheduled).',
+    owner: 'Jordan Lee',
+    status: 'not_started',
+    ragStatus: 'green',
+    projectType: 'initiative',
+    startDate: '',
+    endDate: '',
+    percentComplete: 0,
+    estimatedPoints: 40,
+    priority: 'low',
+    plannedResources: 2,
+    currentResources: 0,
+    source: 'manual',
+  },
+]
+
+// Baseline the whole roadmap (the originally-agreed plan), then apply realistic
+// slips + scope changes to some projects, so schedule variance and the
+// planned-vs-current timeline are meaningful out of the box.
+const SLIPS: Record<string, { days: number; scope?: { note: string; addedPoints?: number } }> = {
+  p_cust3: { days: 25, scope: { note: 'Added fraud-check integration after the security review.', addedPoints: 13 } },
+  p_ets2: { days: 30 },
+  p_ndc2: { days: 21, scope: { note: 'Expanded phase 1 to 4 more partners at business request.', addedPoints: 20 } },
+  p_cust2: { days: 14 },
+  p_hr1: { days: 10 },
+}
+
+// Sample month-by-month ACTUALS for a spread of programs, so the Monthly Budget
+// reconciliation opens with real planned-vs-actual data. Each line carries its own
+// CapEx/OpEx tag (labour is usually CapEx; PMs/scrum masters run OpEx) so the
+// split roll-ups are meaningful. Actuals run from each program's start month
+// through the current month (Sep 2026) — future months stay blank, as in real life.
+type ActualSeed = { role: string; base: number; funding: Funding }[]
+const CURRENT_MONTH_IDX = 8 // September 2026 (0-based) = "actuals to date"
+
+// Base monthly cost per role. Kept deliberately a bit below each program's planned
+// burn so the reconciliation reads "under budget" (green) across the demo.
+const ACTUALS: Record<string, ActualSeed> = {
+  p_cust1: [
+    { role: 'Project Manager', base: 6_000, funding: 'opex' },
+    { role: 'Developer', base: 24_000, funding: 'capex' },
+    { role: 'Business Analyst', base: 4_000, funding: 'capex' },
+  ],
+  p_sf1: [
+    { role: 'Project Manager', base: 6_000, funding: 'opex' },
+    { role: 'Developer', base: 30_000, funding: 'capex' },
+    { role: 'Scrum Master', base: 3_000, funding: 'opex' },
+  ],
+  p_ets1: [
+    { role: 'Project Manager', base: 5_500, funding: 'opex' },
+    { role: 'Developer', base: 20_000, funding: 'capex' },
+    { role: 'Technical Analyst', base: 5_000, funding: 'capex' },
+  ],
+  p_hr1: [
+    { role: 'Project Manager', base: 5_000, funding: 'opex' },
+    { role: 'Developer', base: 15_000, funding: 'capex' },
+  ],
+  p_ndc1: [
+    { role: 'Project Manager', base: 5_500, funding: 'capex' },
+    { role: 'Developer', base: 18_000, funding: 'capex' },
+    { role: 'Business Analyst', base: 4_000, funding: 'opex' },
+  ],
+}
+
+/** Build monthly actuals for 2026 from a program's start month through "today",
+ *  with a small deterministic month-to-month wobble so the numbers look real. */
+function genActuals(program: Program, lines: ActualSeed): MonthlyActual[] {
+  if (!program.startDate) return []
+  const startM = parseISO(program.startDate).getMonth()
+  const endM = program.endDate ? parseISO(program.endDate).getMonth() : 11
+  const last = Math.min(CURRENT_MONTH_IDX, endM)
+  const out: MonthlyActual[] = []
+  for (let m = startM; m <= last; m++) {
+    const monthLines = lines.map((l, i) => {
+      const wobble = 1 + (((m * 7 + i * 3) % 5) - 2) * 0.06 // ≈ −12%…+12%
+      return { role: l.role, cost: Math.round((l.base * wobble) / 100) * 100, funding: l.funding }
+    })
+    out.push({ month: `2026-${String(m + 1).padStart(2, '0')}`, lines: monthLines })
+  }
+  return out
+}
+
+export const seedPrograms: Program[] = RAW_PROGRAMS.map((p) => {
+  const monthlyActuals = ACTUALS[p.id] ? genActuals(p, ACTUALS[p.id]) : undefined
+  // Only scheduled programs (with dates) get a baseline; backlog items don't.
+  const baseline =
+    p.startDate && p.endDate
+      ? {
+          startDate: p.startDate,
+          endDate: p.endDate,
+          estimatedPoints: p.estimatedPoints,
+          lockedAt: '2026-01-15T09:00:00.000Z',
+          lockedBy: 'PMO',
+        }
+      : undefined
+  const slip = SLIPS[p.id]
+  if (!slip) return { ...p, baseline, monthlyActuals }
+  const newEnd = toIso(addDays(parseISO(p.endDate), slip.days))
+  const scopeChanges = slip.scope
+    ? [
+        {
+          id: `sc_${p.id}`,
+          date: toIso(addDays(parseISO(p.startDate), 45)),
+          author: p.owner,
+          note: slip.scope.note,
+          newEndDate: newEnd,
+          addedPoints: slip.scope.addedPoints,
+        },
+      ]
+    : undefined
+  // Baseline keeps the original end; the live endDate moves out to show the slip.
+  return { ...p, baseline, endDate: newEnd, scopeChanges, monthlyActuals }
+})
+
+// Several example projects carry a task breakdown so the per-project Gantt is
+// populated on drill-down (others stay high-level — tasks are optional).
+function t(
+  id: string,
+  programId: string,
+  name: string,
+  startDate: string,
+  endDate: string,
+  percentComplete: number,
+  assignee: string,
+  predecessorIds: string[] = [],
+  milestone = false,
+  storyPoints = 0,
+): Task {
+  return { id, programId, name, startDate, endDate, percentComplete, assignee, milestone, predecessorIds, source: 'manual', storyPoints }
+}
+
+export const seedTasks: Task[] = [
+  // Customer Portal Revamp
+  t('t_cp1', 'p_cust1', 'Discovery & UX', '2026-02-02', '2026-03-13', 100, 'R. Singh'),
+  t('t_cp2', 'p_cust1', 'Design system', '2026-03-16', '2026-04-24', 100, 'R. Singh', ['t_cp1']),
+  t('t_cp3', 'p_cust1', 'Frontend build', '2026-04-27', '2026-08-07', 80, 'M. Chen', ['t_cp2']),
+  t('t_cp4', 'p_cust1', 'Backend APIs', '2026-05-11', '2026-08-21', 65, 'T. Osei', ['t_cp2']),
+  t('t_cp5', 'p_cust1', 'Integration & QA', '2026-08-24', '2026-10-30', 10, 'M. Chen', ['t_cp3', 't_cp4']),
+  t('t_cp6', 'p_cust1', 'Launch', '2026-11-06', '2026-11-06', 0, 'Alex Morgan', ['t_cp5'], true),
+
+  // Customer 360 View
+  t('t_c21', 'p_cust2', 'Discovery', '2026-03-16', '2026-05-01', 100, 'R. Singh'),
+  t('t_c22', 'p_cust2', 'Data model', '2026-05-04', '2026-07-10', 50, 'T. Osei', ['t_c21']),
+  t('t_c23', 'p_cust2', 'Ingestion build', '2026-07-13', '2026-10-02', 10, 'T. Osei', ['t_c22']),
+  t('t_c24', 'p_cust2', '360 view pilot', '2026-12-11', '2026-12-11', 0, 'Alex Morgan', ['t_c23'], true),
+
+  // Salesforce Lightning Migration
+  t('t_sf1', 'p_sf1', 'Assessment', '2026-01-12', '2026-02-13', 100, 'K. Patel'),
+  t('t_sf2', 'p_sf1', 'Org 1 migration', '2026-02-16', '2026-04-03', 100, 'K. Patel', ['t_sf1']),
+  t('t_sf3', 'p_sf1', 'Org 2 migration', '2026-04-06', '2026-05-22', 100, 'D. Ruiz', ['t_sf2']),
+  t('t_sf4', 'p_sf1', 'Org 3 migration', '2026-05-25', '2026-07-17', 90, 'D. Ruiz', ['t_sf3']),
+  t('t_sf5', 'p_sf1', 'Final org migration', '2026-07-20', '2026-09-04', 40, 'K. Patel', ['t_sf4']),
+  t('t_sf6', 'p_sf1', 'Go-live', '2026-09-18', '2026-09-18', 0, 'Jordan Lee', ['t_sf5'], true),
+
+  // ETS Platform Upgrade
+  t('t_et1', 'p_ets1', 'Planning', '2026-01-05', '2026-02-13', 100, 'A. Kumar'),
+  t('t_et2', 'p_ets1', 'Environment build', '2026-02-16', '2026-04-10', 100, 'A. Kumar', ['t_et1']),
+  t('t_et3', 'p_ets1', 'Migration', '2026-04-13', '2026-07-31', 60, 'B. Nguyen', ['t_et2']),
+  t('t_et4', 'p_ets1', 'Cutover', '2026-08-07', '2026-08-07', 0, 'Taylor Reed', ['t_et3'], true),
+  t('t_et5', 'p_ets1', 'Decommission legacy', '2026-08-10', '2026-10-16', 0, 'A. Kumar', ['t_et4']),
+
+  // HR Connex Rollout
+  t('t_hr1', 'p_hr1', 'Requirements', '2026-03-02', '2026-04-03', 100, 'S. Ali'),
+  t('t_hr2', 'p_hr1', 'Configuration', '2026-04-06', '2026-06-05', 80, 'S. Ali', ['t_hr1']),
+  t('t_hr3', 'p_hr1', 'Pilot', '2026-06-08', '2026-08-14', 40, 'J. Wong', ['t_hr2']),
+  t('t_hr4', 'p_hr1', 'Training', '2026-08-17', '2026-10-16', 5, 'J. Wong', ['t_hr3']),
+  t('t_hr5', 'p_hr1', 'Go-live', '2026-11-13', '2026-11-13', 0, 'Sam Carter', ['t_hr4'], true),
+
+  // NDC Integration Phase 1
+  t('t_nd1', 'p_ndc1', 'Design', '2026-01-19', '2026-03-06', 100, 'V. Rao'),
+  t('t_nd2', 'p_ndc1', 'Build', '2026-03-09', '2026-06-05', 80, 'V. Rao', ['t_nd1']),
+  t('t_nd3', 'p_ndc1', 'Partner testing', '2026-06-08', '2026-08-21', 45, 'L. Costa', ['t_nd2']),
+  t('t_nd4', 'p_ndc1', 'Launch', '2026-09-25', '2026-09-25', 0, 'Chris Bennett', ['t_nd3'], true),
+
+  // Checkout Revamp (blocked — shows the status marker on its Gantt)
+  t('t_ck1', 'p_cust3', 'Discovery', '2026-04-01', '2026-05-08', 100, 'R. Singh', [], false, 8),
+  t('t_ck2', 'p_cust3', 'Payment integration', '2026-05-11', '2026-07-24', 70, 'M. Chen', ['t_ck1'], false, 13),
+  t('t_ck3', 'p_cust3', 'Checkout UI', '2026-06-01', '2026-08-14', 55, 'M. Chen', ['t_ck1'], false, 13),
+  t('t_ck4', 'p_cust3', 'Fraud checks', '2026-08-17', '2026-10-16', 0, 'T. Osei', ['t_ck2', 't_ck3'], false, 8),
+  t('t_ck5', 'p_cust3', 'Launch', '2026-11-30', '2026-11-30', 0, 'Alex Morgan', ['t_ck4'], true, 0),
+
+  // ETS Monitoring & Alerting (blocked — waiting on the vendor patch)
+  t('t_em1', 'p_ets2', 'Vendor evaluation', '2026-02-23', '2026-04-03', 100, 'B. Nguyen', [], false, 8),
+  t('t_em2', 'p_ets2', 'Core pipeline setup', '2026-04-06', '2026-06-19', 80, 'B. Nguyen', ['t_em1'], false, 13),
+  t('t_em3', 'p_ets2', 'Baseline alert rules', '2026-06-22', '2026-08-14', 40, 'A. Kumar', ['t_em2'], false, 13),
+  t('t_em4', 'p_ets2', 'Legacy-segment alerting', '2026-08-17', '2026-10-16', 0, 'A. Kumar', ['t_em3'], false, 13),
+  t('t_em5', 'p_ets2', 'Go-live', '2026-10-30', '2026-10-30', 0, 'Taylor Reed', ['t_em4'], true, 0),
+
+  // NDC Partner Onboarding (at risk — behind on partner batches)
+  t('t_np1', 'p_ndc2', 'Onboarding portal', '2026-04-13', '2026-06-19', 100, 'L. Costa', [], false, 13),
+  t('t_np2', 'p_ndc2', 'Partner batch 1 (6)', '2026-06-22', '2026-08-28', 60, 'L. Costa', ['t_np1'], false, 20),
+  t('t_np3', 'p_ndc2', 'Partner batch 2 (8)', '2026-08-31', '2026-10-30', 10, 'V. Rao', ['t_np2'], false, 20),
+  t('t_np4', 'p_ndc2', 'Partner batch 3 (6)', '2026-11-02', '2026-11-27', 0, 'V. Rao', ['t_np3'], false, 20),
+  t('t_np5', 'p_ndc2', 'Complete onboarding', '2026-12-04', '2026-12-04', 0, 'Chris Bennett', ['t_np4'], true, 0),
+
+  // Loyalty Program Redesign (cancelled mid-build)
+  t('t_lp1', 'p_cust4', 'Concept & research', '2026-02-01', '2026-03-20', 100, 'R. Singh'),
+  t('t_lp2', 'p_cust4', 'Tier design', '2026-03-23', '2026-05-15', 80, 'R. Singh', ['t_lp1']),
+  t('t_lp3', 'p_cust4', 'Build (stopped)', '2026-05-18', '2026-08-30', 20, 'M. Chen', ['t_lp2']),
+
+  // Sales Cloud Automation (on hold / deprioritized)
+  t('t_sc1', 'p_sf2', 'Process mapping', '2026-04-06', '2026-05-29', 90, 'D. Ruiz'),
+  t('t_sc2', 'p_sf2', 'Flow build', '2026-06-01', '2026-08-28', 15, 'D. Ruiz', ['t_sc1']),
+  t('t_sc3', 'p_sf2', 'Rollout', '2026-08-31', '2026-12-04', 0, 'Jordan Lee', ['t_sc2']),
+
+  // CPQ Implementation (postponed)
+  t('t_cq1', 'p_sf3', 'Requirements', '2026-05-01', '2026-06-26', 70, 'K. Patel'),
+  t('t_cq2', 'p_sf3', 'CPQ configuration', '2026-06-29', '2026-10-09', 5, 'K. Patel', ['t_cq1']),
+  t('t_cq3', 'p_sf3', 'Testing & launch', '2026-10-12', '2026-12-15', 0, 'Jordan Lee', ['t_cq2']),
+
+  // Legacy Reporting Sunset (descoped)
+  t('t_lr1', 'p_ets3', 'Report inventory', '2026-03-01', '2026-04-17', 100, 'A. Kumar'),
+  t('t_lr2', 'p_ets3', 'Migration plan', '2026-04-20', '2026-06-12', 40, 'B. Nguyen', ['t_lr1']),
+  t('t_lr3', 'p_ets3', 'Decommission', '2026-06-15', '2026-09-30', 0, 'B. Nguyen', ['t_lr2']),
+
+  // HR AI Assistant (Pilot) (on hold / deprioritized)
+  t('t_ai1', 'p_hr2', 'Use-case discovery', '2026-05-04', '2026-06-26', 60, 'J. Wong'),
+  t('t_ai2', 'p_hr2', 'Model pilot', '2026-06-29', '2026-10-09', 0, 'J. Wong', ['t_ai1']),
+  t('t_ai3', 'p_hr2', 'Evaluation', '2026-10-12', '2026-12-18', 0, 'Sam Carter', ['t_ai2']),
+
+  // Benefits Self-Service (not started)
+  t('t_bs1', 'p_hr3', 'Requirements', '2026-09-01', '2026-10-30', 0, 'S. Ali'),
+  t('t_bs2', 'p_hr3', 'Build', '2026-11-02', '2027-01-29', 0, 'S. Ali', ['t_bs1']),
+  t('t_bs3', 'p_hr3', 'Launch', '2027-03-31', '2027-03-31', 0, 'Sam Carter', ['t_bs2'], true),
+
+  // NDC Analytics (completed)
+  t('t_na1', 'p_ndc3', 'Data pipeline', '2026-01-05', '2026-03-06', 100, 'V. Rao'),
+  t('t_na2', 'p_ndc3', 'Dashboards', '2026-03-09', '2026-05-15', 100, 'L. Costa', ['t_na1']),
+  t('t_na3', 'p_ndc3', 'Handover', '2026-05-18', '2026-06-30', 100, 'Chris Bennett', ['t_na2']),
+]
+
+// Example audit trail — one entry per program whose status was changed. In the
+// live app these are created automatically (with a mandatory reason) whenever a
+// manager changes a program's status.
+export const seedStatusChanges: StatusChange[] = [
+  {
+    id: 'sc_1',
+    programId: 'p_cust3',
+    date: '2026-08-15',
+    author: 'Alex Morgan',
+    fromStatus: 'on_track',
+    toStatus: 'blocked',
+    note: 'Blocked — the payment gateway sandbox is down; integration cannot resume until the vendor restores it.',
+  },
+  {
+    id: 'sc_2',
+    programId: 'p_ets2',
+    date: '2026-08-20',
+    author: 'Taylor Reed',
+    fromStatus: 'at_risk',
+    toStatus: 'blocked',
+    note: 'Blocked pending the monitoring vendor’s compatibility fix for the legacy segments.',
+  },
+  {
+    id: 'sc_3',
+    programId: 'p_cust4',
+    date: '2026-06-30',
+    author: 'Alex Morgan',
+    fromStatus: 'at_risk',
+    toStatus: 'cancelled',
+    note: 'Cancelled — superseded by the enterprise loyalty platform; remaining budget reallocated.',
+  },
+  {
+    id: 'sc_4',
+    programId: 'p_sf3',
+    date: '2026-07-01',
+    author: 'Jordan Lee',
+    fromStatus: 'on_track',
+    toStatus: 'postponed',
+    note: 'Postponed to the next PI to protect capacity for the Lightning migration.',
+  },
+  {
+    id: 'sc_5',
+    programId: 'p_ets3',
+    date: '2026-07-20',
+    author: 'Taylor Reed',
+    fromStatus: 'at_risk',
+    toStatus: 'descoped',
+    note: 'Descoped — 2 of 5 legacy reports retained at business request; the rest deferred.',
+  },
+]
+
+// Weekly updates spanning the last four weeks and every domain, so the Weekly
+// Updates view, week/domain grouping, filters and the "this week" tiles all
+// demo with real content.
+export const seedUpdates: StatusUpdate[] = [
+  // ---- This week (week of 31 Aug) ----
+  {
+    id: 'u_1',
+    programId: 'p_sf1',
+    date: '2026-08-31',
+    author: 'Jordan Lee',
+    progress: 'Final-org migration dry run completed; 98% of test cases passing.',
+    nextWeeks: 'Cut over the final org during the IP week and begin hypercare.',
+    nextMonths: 'Decommission Classic and run a page-performance tuning pass.',
+    upcomingRelease: 'Final-org go-live scheduled for the IP week (12 Sep).',
+    releasedItems: 'Org 3 migration and the new Lightning home pages shipped to production.',
+    risks: 'Final org has heavy custom code — a late edge case could slip the cutover.',
+  },
+  {
+    id: 'u_2',
+    programId: 'p_ets2',
+    date: '2026-08-31',
+    author: 'Taylor Reed',
+    progress: 'Baseline alerting rules live for core services; dashboards wired up.',
+    nextWeeks: 'Extend alerting to legacy segments once the vendor patch lands.',
+    concerns: 'Team is understaffed — 2 of 4 planned engineers; escalated to resourcing for one more hire.',
+    blockers: 'Blocked on the monitoring vendor to deliver a compatibility fix.',
+    risks: 'Delivery date at risk if the vendor slips the patch again.',
+  },
+  {
+    id: 'u_3',
+    programId: 'p_cust2',
+    date: '2026-08-31',
+    author: 'Alex Morgan',
+    progress: 'Data model v1 drafted; ingestion prototype pulling from two sources.',
+    nextWeeks: 'Finish the ingestion build and validate against the CRM extract.',
+    nextMonths: 'Stand up the unified 360 view and pilot with one support team.',
+    upcomingRelease: 'Data model v1 enters UAT after Sprint 3.1.',
+    concerns: 'Source mapping is wider than originally scoped.',
+  },
+  {
+    id: 'u_4',
+    programId: 'p_cust3',
+    date: '2026-09-01',
+    author: 'Alex Morgan',
+    progress: 'Payment-gateway integration 40% done; checkout UI redesign in review.',
+    nextWeeks: 'Unblock the gateway sandbox and resume integration testing.',
+    blockers: 'Blocked — payment-vendor sandbox credentials still pending from procurement.',
+    concerns: 'Every week blocked pushes go-live closer to the holiday freeze.',
+    risks: 'Holiday code freeze (Dec) is a hard deadline; slippage risks a Q1 delay.',
+  },
+  {
+    id: 'u_5',
+    programId: 'p_ndc1',
+    date: '2026-08-31',
+    author: 'Chris Bennett',
+    progress: 'Phase 1 partner API integration complete; end-to-end tests green.',
+    nextWeeks: 'Begin Phase 2 scoping and schedule partner UAT.',
+    upcomingRelease: 'Phase 1 partner connectivity goes live 8 Sep.',
+    releasedItems: 'Partner authentication service and booking sync released this sprint.',
+  },
+  {
+    id: 'u_6',
+    programId: 'p_hr1',
+    date: '2026-09-01',
+    author: 'Sam Carter',
+    progress: 'HR Connex rolled out to 3 of 5 business units; adoption tracking on.',
+    nextWeeks: 'Roll out to the remaining two BUs and run enablement sessions.',
+    nextMonths: 'Retire the legacy HR portal and consolidate reporting.',
+    concerns: 'Change fatigue in one BU — extra enablement needed.',
+  },
+  // ---- Last week (week of 24 Aug) ----
+  {
+    id: 'u_7',
+    programId: 'p_ets1',
+    date: '2026-08-27',
+    author: 'Taylor Reed',
+    progress: 'Platform upgrade to v4 completed in staging; regression suite passing.',
+    nextWeeks: 'Promote to production during the next maintenance window.',
+    upcomingRelease: 'Production upgrade planned for the 5 Sep maintenance window.',
+  },
+  {
+    id: 'u_8',
+    programId: 'p_ndc2',
+    date: '2026-08-26',
+    author: 'Chris Bennett',
+    progress: 'Onboarded 6 of 20 target partners; self-serve portal flow live.',
+    nextWeeks: 'Batch-onboard the next 8 partners and gather feedback.',
+    concerns: 'Only 3 of a planned 3 team members — pace is tight for the target date.',
+    risks: 'At current velocity the Dec target is at risk — leadership reviewing temporary onboarding support.',
+  },
+  {
+    id: 'u_9',
+    programId: 'p_cust1',
+    date: '2026-08-25',
+    author: 'Alex Morgan',
+    progress: 'Portal revamp on track — account and billing modules feature-complete.',
+    nextWeeks: 'Start the accessibility audit and cross-browser testing.',
+    nextMonths: 'Launch the redesigned portal to a 10% canary in November.',
+  },
+  {
+    id: 'u_10',
+    programId: 'p_sf1',
+    date: '2026-08-24',
+    author: 'Jordan Lee',
+    progress: 'Migrated 3 of 4 orgs to Lightning; regression suite passing.',
+    nextWeeks: 'Prep the final-org migration and user training.',
+    releasedItems: 'Org 2 migration released to production.',
+    risks: 'Final org has heavy custom code — migration may surface edge cases.',
+  },
+  // ---- Two weeks ago (week of 17 Aug) ----
+  {
+    id: 'u_11',
+    programId: 'p_ets2',
+    date: '2026-08-19',
+    author: 'Taylor Reed',
+    progress: 'Evaluated monitoring vendors; selected tooling and stood up the core pipeline.',
+    nextWeeks: 'Configure baseline alert rules for core services.',
+    blockers: 'Waiting on a vendor compatibility fix for the legacy stack.',
+  },
+  {
+    id: 'u_12',
+    programId: 'p_hr1',
+    date: '2026-08-18',
+    author: 'Sam Carter',
+    progress: 'HR Connex live in the first business unit; early feedback positive.',
+    nextWeeks: 'Prepare rollout to the next two business units.',
+  },
+  {
+    id: 'u_13',
+    programId: 'p_ndc1',
+    date: '2026-08-20',
+    author: 'Chris Bennett',
+    progress: 'Partner API contract finalized; auth-service build underway.',
+    nextWeeks: 'Complete the auth service and start integration tests.',
+    upcomingRelease: 'Targeting Phase 1 connectivity for early September.',
+  },
+  // ---- Three weeks ago (week of 10 Aug) ----
+  {
+    id: 'u_14',
+    programId: 'p_cust2',
+    date: '2026-08-12',
+    author: 'Alex Morgan',
+    progress: 'Completed discovery on customer data sources.',
+    nextWeeks: 'Draft the unified data model.',
+    concerns: 'Number of source systems is higher than expected.',
+  },
+  {
+    id: 'u_15',
+    programId: 'p_sf1',
+    date: '2026-08-11',
+    author: 'Jordan Lee',
+    progress: 'Kicked off the Lightning migration; org 1 migrated and validated.',
+    nextWeeks: 'Migrate org 2 and expand the regression suite.',
+  },
+]
+
+// Example discussions on updates — leadership asks, the manager replies. Author
+// "Leadership" matches the read-only Leadership persona in the sidebar.
+// The director's weekly rollup to the VP (what the VP reads instead of the
+// manager-by-manager feed).
+export const seedDirectorUpdates: DirectorUpdate[] = [
+  {
+    id: 'du_1',
+    directorId: 'dir_ec',
+    author: 'Emma Clark',
+    date: '2026-09-25',
+    summary:
+      'Salesforce is on plan. Customer, ETS, HR Connex and NDC each have a project running late vs the agreed plan — mostly vendor dependencies, not team capacity. Customer Portal Revamp is on track for its 6 Nov launch. Spend is under plan across all five teams.',
+    risks:
+      'Checkout Revamp and ETS Monitoring & Alerting are blocked on vendor sandbox / credentials (25–30 days late). NDC Partner Onboarding slipped 3 weeks on partner readiness.',
+    asks: 'Escalation with the payment vendor to unblock Checkout Revamp this week.',
+  },
+]
+
+export const seedComments: UpdateComment[] = [
+  {
+    id: 'cm_1',
+    updateId: 'u_2',
+    author: 'Leadership',
+    role: 'director',
+    text: 'What is our fallback if the vendor patch slips again? Can we close the resourcing gap this sprint?',
+    date: '2026-08-31T14:10:00.000Z',
+  },
+  {
+    id: 'cm_2',
+    updateId: 'u_2',
+    author: 'Taylor Reed',
+    role: 'contributor',
+    text: 'Fallback is a manual alerting bridge for legacy segments. I have requested one more engineer to close the gap.',
+    date: '2026-09-01T09:05:00.000Z',
+  },
+  {
+    id: 'cm_3',
+    updateId: 'u_1',
+    author: 'Leadership',
+    role: 'director',
+    text: 'Great momentum on the Lightning migration — please flag any final-org edge cases early so we can protect the go-live.',
+    date: '2026-08-31T16:20:00.000Z',
+  },
+  {
+    id: 'cm_4',
+    updateId: 'u_4',
+    author: 'Leadership',
+    role: 'director',
+    text: 'This gateway blocker has been open two weeks. Do you need me to escalate with procurement?',
+    date: '2026-09-01T11:00:00.000Z',
+  },
+  {
+    id: 'cm_5',
+    updateId: 'u_4',
+    author: 'Alex Morgan',
+    role: 'contributor',
+    text: 'Yes please — an escalation would help. Sandbox credentials are the only thing holding up integration.',
+    date: '2026-09-01T13:30:00.000Z',
+  },
+  {
+    id: 'cm_6',
+    updateId: 'u_8',
+    author: 'Leadership',
+    role: 'director',
+    text: 'If the Dec target is at risk, let us look at temporary onboarding support. Send me the throughput numbers.',
+    date: '2026-08-27T10:15:00.000Z',
+  },
+  {
+    id: 'cm_7',
+    updateId: 'u_8',
+    author: 'Chris Bennett',
+    role: 'contributor',
+    text: 'Will send the throughput model. Two extra onboarding specialists would get us to target.',
+    date: '2026-08-27T15:40:00.000Z',
+  },
+  {
+    id: 'cm_8',
+    updateId: 'u_3',
+    author: 'Leadership',
+    role: 'director',
+    text: 'Good progress. Keep an eye on the source-mapping scope creep — flag early if it needs a re-baseline.',
+    date: '2026-08-31T17:05:00.000Z',
+  },
+]
+
+// Example edit-history — shows leadership refining an update while preserving the
+// manager's original wording.
+export const seedUpdateEdits: UpdateEdit[] = [
+  {
+    id: 'ue_1',
+    updateId: 'u_2',
+    editor: 'Leadership',
+    editorRole: 'director',
+    date: '2026-09-01T09:20:00.000Z',
+    changes: [
+      {
+        field: 'concerns',
+        from: 'Team is understaffed — 2 of 4 planned engineers.',
+        to: 'Team is understaffed — 2 of 4 planned engineers; escalated to resourcing for one more hire.',
+      },
+    ],
+  },
+  {
+    id: 'ue_2',
+    updateId: 'u_8',
+    editor: 'Leadership',
+    editorRole: 'director',
+    date: '2026-08-27T16:00:00.000Z',
+    changes: [
+      {
+        field: 'risks',
+        from: 'At current velocity the Dec target is at risk without more onboarding support.',
+        to: 'At current velocity the Dec target is at risk — leadership reviewing temporary onboarding support.',
+      },
+    ],
+  },
+]
